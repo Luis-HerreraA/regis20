@@ -480,24 +480,24 @@ export default {
       }
 
       // Obtener el tipo de sustancia actual
-      const currentSubstanceTypeId = data.substanceType?.id
+      //const currentSubstanceTypeId = data.substanceType?.id
       // Obtener el tipo de la primera sustancia seleccionada
-      const firstSelectedSubstance = selectedSubstances.value[0]
-      const firstSelectedTypeId = firstSelectedSubstance.substanceType?.id
+      //const firstSelectedSubstance = selectedSubstances.value[0]
+      //const firstSelectedTypeId = firstSelectedSubstance.substanceType?.id
 
       // Definir grupos
-      const interiorGroup = [1, 2, 3]
-      const isCurrentInterior = interiorGroup.includes(currentSubstanceTypeId)
-      const isFirstSelectedInterior = interiorGroup.includes(firstSelectedTypeId)
+      //const interiorGroup = [1, 2, 3]
+      //const isCurrentInterior = interiorGroup.includes(currentSubstanceTypeId)
+      //const isFirstSelectedInterior = interiorGroup.includes(firstSelectedTypeId)
 
       // Si ambos están en el mismo grupo, permitir
       // Si ambos están en grupos diferentes, permitir
       // Si uno está en interior y otro no, bloquear
-      if (isCurrentInterior === isFirstSelectedInterior) {
-        return ''
-      } else {
-        return 'p-disabled'
-      }
+      //if (isCurrentInterior === isFirstSelectedInterior) {
+      //  return ''
+      //} else {
+      //  return 'p-disabled'
+      //}
     }
     // Computed para validar el formulario masivo
     const isBulkPreAnalysisFormValid = computed(() => {
@@ -1084,12 +1084,12 @@ export default {
       }
     }
 
-    const onSubstanceSelect = (event) => {
+    const onSubstanceSelect = (/*event*/) => {
       // Validar que no se mezclen sustancias incompatibles
-      const selectedSubstance = event.data
-      const currentSubstanceTypeId = selectedSubstance.substanceType?.id
-      const interiorGroup = [1, 2, 3]
-      const isCurrentInterior = interiorGroup.includes(currentSubstanceTypeId)
+      // const selectedSubstance = event.data
+      // const currentSubstanceTypeId = selectedSubstance.substanceType?.id
+      // const interiorGroup = [1, 2, 3]
+      // const isCurrentInterior = interiorGroup.includes(currentSubstanceTypeId)
 
       // Si es la primera selección, permitir
       if (selectedSubstances.value.length <= 1) {
@@ -1097,16 +1097,16 @@ export default {
       }
 
       // Validar que no se mezclen grupos
-      const firstSelectedSubstance = selectedSubstances.value[0]
-      const firstSelectedTypeId = firstSelectedSubstance.substanceType?.id
-      const isFirstSelectedInterior = interiorGroup.includes(firstSelectedTypeId)
+      // const firstSelectedSubstance = selectedSubstances.value[0]
+      // const firstSelectedTypeId = firstSelectedSubstance.substanceType?.id
+      // const isFirstSelectedInterior = interiorGroup.includes(firstSelectedTypeId)
 
-      if (isCurrentInterior !== isFirstSelectedInterior) {
-        // Remover la sustancia si no es compatible
-        selectedSubstances.value = selectedSubstances.value.filter(
-          (s) => s.id !== selectedSubstance.id,
-        )
-      }
+      // if (isCurrentInterior !== isFirstSelectedInterior) {
+      //   // Remover la sustancia si no es compatible
+      //   selectedSubstances.value = selectedSubstances.value.filter(
+      //     (s) => s.id !== selectedSubstance.id,
+      //   )
+      // }
     }
 
     const onSubstanceUnselect = (event) => {
