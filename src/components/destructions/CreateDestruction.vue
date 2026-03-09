@@ -95,17 +95,19 @@
                 {{ slotProps.data.substance?.reception?.number || '—' }}
               </template>
             </Column>
-            <Column header="Peso (gr)" :style="{ width: '120px' }">
+            <Column header="Cantidad" :style="{ width: '140px' }">
               <template #body="slotProps">
-                {{ Number(slotProps.data.counter_sample_quantity || 0).toFixed(2) }}
+                {{ formatStorageAmount(slotProps.data) }} {{ getStorageUnitLabel(slotProps.data) }}
               </template>
             </Column>
           </DataTable>
 
           <div class="mt-3 flex justify-content-end">
-            <p class="text-lg font-bold">
-              Peso Total: <span class="text-primary">{{ totalWeight.toFixed(2) }} gr</span>
+            <p class="text-lg font-bold" v-if="!hasMixedUnits">
+              Total:
+              <span class="text-primary">{{ formattedTotalAmount }} {{ totalUnitLabel }}</span>
             </p>
+            <p class="text-sm text-500" v-else>Selección con distintos tipos de medición</p>
           </div>
         </div>
       </div>
@@ -165,17 +167,19 @@
                 {{ slotProps.data.substance?.reception?.number || '—' }}
               </template>
             </Column>
-            <Column header="Peso (gr)" :style="{ width: '120px' }">
+            <Column header="Cantidad" :style="{ width: '140px' }">
               <template #body="slotProps">
-                {{ Number(slotProps.data.counter_sample_quantity || 0).toFixed(2) }}
+                {{ formatStorageAmount(slotProps.data) }} {{ getStorageUnitLabel(slotProps.data) }}
               </template>
             </Column>
           </DataTable>
 
           <div class="mt-3 flex justify-content-end">
-            <p class="text-lg font-bold">
-              Peso Total: <span class="text-primary">{{ totalWeight.toFixed(2) }} gr</span>
+            <p class="text-lg font-bold" v-if="!hasMixedUnits">
+              Total:
+              <span class="text-primary">{{ formattedTotalAmount }} {{ totalUnitLabel }}</span>
             </p>
+            <p class="text-sm text-500" v-else>Selección con distintos tipos de medición</p>
           </div>
         </div>
 
@@ -308,12 +312,58 @@ export default {
 
     const errors = ref({})
 
-    // Calcular peso total de todos los storages seleccionados (en gramos)
-    const totalWeight = computed(() => {
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const getStorageUnitLabel = (storage) => {
+      const measurementType = storage?.measurement_type || storage?.substance?.measurement_type
+      return isUnitMeasurementType(measurementType) ? 'und' : 'gr'
+    }
+
+    const getStorageAmount = (storage) => {
+      if (getStorageUnitLabel(storage) === 'und') {
+        return Number(
+          storage?.unit_quantity !== undefined && storage?.unit_quantity !== null
+            ? storage.unit_quantity
+            : storage?.counter_sample_quantity || 0,
+        )
+      }
+
+      return Number(storage?.counter_sample_quantity || 0)
+    }
+
+    const formatStorageAmount = (storage) => {
+      const amount = getStorageAmount(storage)
+      return getStorageUnitLabel(storage) === 'und' ? String(Math.trunc(amount)) : amount.toFixed(2)
+    }
+
+    const hasMixedUnits = computed(() => {
+      if (!props.substances || props.substances.length === 0) return false
+      const labels = new Set(props.substances.map((storage) => getStorageUnitLabel(storage)))
+      return labels.size > 1
+    })
+
+    const totalAmount = computed(() => {
       if (!props.substances || props.substances.length === 0) return 0
-      return props.substances.reduce((total, storage) => {
-        return total + Number(storage.counter_sample_quantity || 0)
-      }, 0)
+      return props.substances.reduce((total, storage) => total + getStorageAmount(storage), 0)
+    })
+
+    const totalUnitLabel = computed(() => {
+      if (!props.substances || props.substances.length === 0 || hasMixedUnits.value) return ''
+      return getStorageUnitLabel(props.substances[0])
+    })
+
+    const formattedTotalAmount = computed(() => {
+      if (totalUnitLabel.value === 'und') return String(Math.trunc(totalAmount.value))
+      return totalAmount.value.toFixed(2)
     })
 
     const loadMethodsDestructions = async () => {
@@ -385,12 +435,12 @@ export default {
         errors.value.methodDestructionId = 'Debe seleccionar un método de destrucción'
       }
 
-      // Validar que haya peso total calculado
-      if (totalWeight.value <= 0) {
+      // Validar que haya cantidad total calculada
+      if (totalAmount.value <= 0) {
         toast.add({
           severity: 'warn',
           summary: 'Atención',
-          detail: 'No hay almacenamientos seleccionados o el peso total es 0',
+          detail: 'No hay almacenamientos seleccionados o la cantidad total es 0',
           life: 3000,
         })
         return false
@@ -420,7 +470,7 @@ export default {
           date_destruction: formatDate(form.value.date_destruction),
           observation: form.value.observation || null,
           state: form.value.state,
-          weight: totalWeight.value,
+          weight: totalAmount.value,
           methodDestruction: { id: form.value.methodDestructionId },
           user: { id: userId },
         }
@@ -436,9 +486,22 @@ export default {
 
           for (const storage of props.substances) {
             try {
+              const normalizedMeasurementType = String(
+                storage.measurement_type || storage.substance?.measurement_type || '',
+              )
+                .trim()
+                .toLowerCase()
+              const usesUnits =
+                normalizedMeasurementType.includes('unidad') ||
+                normalizedMeasurementType.includes('paquete')
+              const detailAmount = getStorageAmount(storage)
+
               const detailPayload = {
                 state: 'COMPLETADO',
-                weight: Number(storage.counter_sample_quantity || 0),
+                weight: detailAmount,
+                measurement_type:
+                  storage.measurement_type || storage.substance?.measurement_type || null,
+                unit_quantity: usesUnits ? detailAmount : null,
                 destructionHeader: createdHeader,
                 substance: storage.substance,
                 storage: storage,
@@ -453,7 +516,15 @@ export default {
                   id: storage.id,
                   substance: storage.substance,
                   storageLocation: storage.storageLocation,
-                  counter_sample_quantity: storage.counter_sample_quantity,
+                  counter_sample_quantity: detailAmount,
+                  measurement_type:
+                    storage.measurement_type || storage.substance?.measurement_type || null,
+                  unit_quantity:
+                    storage.unit_quantity !== undefined && storage.unit_quantity !== null
+                      ? storage.unit_quantity
+                      : usesUnits
+                        ? Number(storage.counter_sample_quantity || 0)
+                        : null,
                   description: storage.description,
                   state: 'Enviado a destrucción',
                   created_at: storage.created_at,
@@ -532,7 +603,11 @@ export default {
       errors,
       methodsDestructions,
       stateOptions,
-      totalWeight,
+      hasMixedUnits,
+      totalUnitLabel,
+      formattedTotalAmount,
+      getStorageUnitLabel,
+      formatStorageAmount,
       openDialog,
       closeDialog,
       handleCancel,

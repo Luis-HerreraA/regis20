@@ -48,9 +48,10 @@ export const generarActaPDF = (form, receptionResponse) => {
     { header: 'Muestra Nº', dataKey: 'n' },
     { header: 'Presunto', dataKey: 'presunto' },
     { header: 'NUE', dataKey: 'nue' },
-    { header: 'Peso Bruto (g)', dataKey: 'peso' },
-    { header: 'Peso Neto (g)', dataKey: 'peso_neto' },
-    { header: 'Unidad', dataKey: 'unidad' },
+    { header: 'Tipo de Medición', dataKey: 'measurement_type' },
+    { header: 'Cantidad', dataKey: 'cantidad' },
+    { header: 'Peso Bruto', dataKey: 'peso' },
+    { header: 'Peso Neto', dataKey: 'peso_neto' },
     { header: 'Descripción muestra', dataKey: 'descripcion' },
   ]
   console.log(form.substances)
@@ -59,9 +60,19 @@ export const generarActaPDF = (form, receptionResponse) => {
     n: s.nsubstance || '—',
     presunto: s.substanceTypeName || '—',
     nue: s.nue || '—',
+    measurement_type:
+      s.measurement_type ||
+      (String(s.unity || '')
+        .toUpperCase()
+        .includes('UNIDAD') ||
+      String(s.unity || '')
+        .toUpperCase()
+        .includes('PAQUETE')
+        ? 'UNIDAD'
+        : 'PESO'),
+    cantidad: s.unit_quantity ?? s.unity_quantity ?? '—',
     peso: s.weight ? Number(s.weight).toFixed(2) : '—',
     peso_neto: s.weight_net ? Number(s.weight_net).toFixed(2) : '—',
-    unidad: s.unity || '—',
     descripcion: s.description || '—',
   }))
 

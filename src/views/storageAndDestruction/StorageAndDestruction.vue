@@ -56,7 +56,12 @@
                             {{ slotProps.data.substance?.reception?.number || '—' }}
                           </template>
                         </Column>
-                        <Column field="counter_sample_quantity" header="Peso neto(gr)" />
+                        <Column header="Cantidad">
+                          <template #body="slotProps">
+                            {{ formatStorageAmount(slotProps.data) }}
+                            {{ getStorageUnitLabel(slotProps.data) }}
+                          </template>
+                        </Column>
                         <Column header="Estado">
                           <template #body="slotProps">
                             {{ slotProps.data.state || '—' }}
@@ -220,7 +225,12 @@
                                   {{ detailSlot.data.substance?.reception?.number || '—' }}
                                 </template>
                               </Column>
-                              <Column field="weight" header="Peso (gr)" />
+                              <Column header="Cantidad">
+                                <template #body="detailSlot">
+                                  {{ formatDestructionDetailAmount(detailSlot.data) }}
+                                  {{ getDestructionDetailUnitLabel(detailSlot.data) }}
+                                </template>
+                              </Column>
                               <Column field="state" header="Estado">
                                 <template #body="detailSlot">
                                   <Tag
@@ -483,6 +493,53 @@ export default {
       return new Date(date).toLocaleDateString('es-CL')
     }
 
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const getStorageUnitLabel = (storage) => {
+      const measurementType = storage?.measurement_type || storage?.substance?.measurement_type
+      return isUnitMeasurementType(measurementType) ? 'und' : 'gr'
+    }
+
+    const formatStorageAmount = (storage) => {
+      const isUnit = getStorageUnitLabel(storage) === 'und'
+      const amount = Number(
+        isUnit
+          ? storage?.unit_quantity !== undefined && storage?.unit_quantity !== null
+            ? storage.unit_quantity
+            : storage?.counter_sample_quantity || 0
+          : storage?.counter_sample_quantity || 0,
+      )
+
+      return isUnit ? String(Math.trunc(amount)) : amount.toFixed(2)
+    }
+
+    const getDestructionDetailUnitLabel = (detail) => {
+      const measurementType = detail?.measurement_type || detail?.substance?.measurement_type
+      return isUnitMeasurementType(measurementType) ? 'und' : 'gr'
+    }
+
+    const formatDestructionDetailAmount = (detail) => {
+      const isUnit = getDestructionDetailUnitLabel(detail) === 'und'
+      const amount = Number(
+        isUnit
+          ? detail?.unit_quantity !== undefined && detail?.unit_quantity !== null
+            ? detail.unit_quantity
+            : detail?.weight || 0
+          : detail?.weight || 0,
+      )
+
+      return isUnit ? String(Math.trunc(amount)) : amount.toFixed(2)
+    }
+
     // Severidad del tag de estado
     const getDestructionSeverity = (state) => {
       switch (state) {
@@ -612,6 +669,10 @@ export default {
       onDestructionUpdated,
       confirmDelete,
       formatDate,
+      formatStorageAmount,
+      getStorageUnitLabel,
+      formatDestructionDetailAmount,
+      getDestructionDetailUnitLabel,
       getDestructionSeverity,
       downloadDestructionReport,
       downloadDestructionReportMethod1,

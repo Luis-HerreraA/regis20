@@ -42,7 +42,12 @@
                       {{ slotProps.data.substance?.reception?.number || '—' }}
                     </template>
                   </Column>
-                  <Column field="counter_sample_quantity" header="Peso (gr)" />
+                  <Column header="Cantidad">
+                    <template #body="slotProps">
+                      {{ formatStorageAmount(slotProps.data) }}
+                      {{ getStorageUnitLabel(slotProps.data) }}
+                    </template>
+                  </Column>
                   <Column header="Ubicación">
                     <template #body="slotProps">
                       {{ slotProps.data.storageLocation?.name || '—' }}
@@ -127,6 +132,41 @@ export default {
       return new Date(dateString).toLocaleDateString('es-CL')
     }
 
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const getStorageAmount = (storage) => {
+      const measurementType = storage?.measurement_type || storage?.substance?.measurement_type
+
+      if (isUnitMeasurementType(measurementType)) {
+        return Number(
+          storage?.unit_quantity !== undefined && storage?.unit_quantity !== null
+            ? storage.unit_quantity
+            : storage?.counter_sample_quantity || 0,
+        )
+      }
+
+      return Number(storage?.counter_sample_quantity || 0)
+    }
+
+    const getStorageUnitLabel = (storage) => {
+      const measurementType = storage?.measurement_type || storage?.substance?.measurement_type
+      return isUnitMeasurementType(measurementType) ? 'und' : 'gr'
+    }
+
+    const formatStorageAmount = (storage) => {
+      const amount = getStorageAmount(storage)
+      return getStorageUnitLabel(storage) === 'und' ? String(Math.trunc(amount)) : amount.toFixed(2)
+    }
+
     const loadMethodsDestruction = async () => {
       try {
         const { data } = await methodsDestructionsService.getAll()
@@ -173,7 +213,7 @@ export default {
           try {
             const destructionPayload = {
               state: 'PENDIENTE',
-              weight: storage.counter_sample_quantity,
+              weight: getStorageAmount(storage),
               methodDestruction: formData.methodDestruction,
               user: { id: userId },
               act_number: null,
@@ -189,7 +229,15 @@ export default {
               id: storage.id,
               substance: storage.substance,
               storageLocation: storage.storageLocation,
-              counter_sample_quantity: storage.counter_sample_quantity,
+              counter_sample_quantity: getStorageAmount(storage),
+              measurement_type:
+                storage.measurement_type || storage.substance?.measurement_type || null,
+              unit_quantity:
+                storage.unit_quantity !== undefined && storage.unit_quantity !== null
+                  ? storage.unit_quantity
+                  : getStorageUnitLabel(storage) === 'und'
+                    ? getStorageAmount(storage)
+                    : null,
               description: storage.description,
               state: 'Derivado para destruccion',
               createdAt: storage.createdAt,
@@ -275,7 +323,7 @@ export default {
               date_destruction: null,
               observation: destructionData.value.observation || null,
               state: 'PENDIENTE',
-              weight: Number(storage.counter_sample_quantity),
+              weight: getStorageAmount(storage),
               methodDestruction: destructionData.value.methodDestruction,
               user: null,
             }
@@ -332,6 +380,8 @@ export default {
       storages,
       fetchStorages,
       formatDate,
+      formatStorageAmount,
+      getStorageUnitLabel,
       selectedStorages,
       showDestructionDialog,
       methodsDestruction,

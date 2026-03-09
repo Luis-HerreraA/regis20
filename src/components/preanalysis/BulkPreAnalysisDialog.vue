@@ -57,9 +57,9 @@
         />
       </div>
 
-      <!-- CONFIGURACIÓN DE PESOS INDIVIDUALES -->
+      <!-- CONFIGURACIÓN INDIVIDUAL -->
       <div class="field" v-if="showIndividualWeights">
-        <label>Configuración de Pesos por Sustancia</label>
+        <label>Configuración por Sustancia</label>
         <div class="individual-weights mt-2">
           <div
             v-for="substance in selectedSubstances"
@@ -81,44 +81,49 @@
               <div class="text-sm">
                 <strong>{{ substance.substanceType?.name }}</strong>
               </div>
-              <div class="text-xs text-500">Peso total: {{ substance.weight_net }} gr</div>
+              <div class="text-xs text-500">
+                Total disponible: {{ formatTotalAvailable(substance) }}
+                {{ getUnitLabel(substance) }}
+              </div>
             </div>
 
             <div style="width: 120px">
-              <label class="text-xs">Muestra (gr)</label>
+              <label class="text-xs">Muestra ({{ getUnitLabel(substance) }})</label>
               <InputNumber
                 v-model="formData.individualWeights[substance.id].sample"
                 mode="decimal"
                 :min="0"
-                :max="substance.weight_net"
-                :fractionDigits="2"
+                :max="getTotalAvailable(substance)"
                 decimalSeparator="."
                 :useGrouping="false"
                 placeholder="Muestra"
-                :minFractionDigits="1"
+                :minFractionDigits="isUnitMeasurement(substance) ? 0 : 1"
+                :maxFractionDigits="isUnitMeasurement(substance) ? 0 : 2"
                 style="width: 120px"
               />
             </div>
 
             <div style="width: 140px">
-              <label class="text-xs">Contramuestra (gr)</label>
+              <label class="text-xs">Contramuestra ({{ getUnitLabel(substance) }})</label>
               <InputNumber
                 v-model="formData.individualWeights[substance.id].contra"
                 mode="decimal"
                 :min="0"
-                :max="substance.weight_net"
-                :fractionDigits="2"
+                :max="getTotalAvailable(substance)"
                 decimalSeparator="."
                 :useGrouping="false"
                 placeholder="Contramuestra"
-                :minFractionDigits="1"
+                :minFractionDigits="isUnitMeasurement(substance) ? 0 : 1"
+                :maxFractionDigits="isUnitMeasurement(substance) ? 0 : 2"
                 style="width: 120px"
               />
             </div>
 
             <div style="width: 140px">
               <label class="text-xs">Restante → Destrucción</label>
-              <div class="text-sm text-700">{{ computeRestante(substance) }} gr</div>
+              <div class="text-sm text-700">
+                {{ computeRestante(substance) }} {{ getUnitLabel(substance) }}
+              </div>
             </div>
           </div>
         </div>
@@ -192,15 +197,62 @@ export default {
 
     const showIndividualWeights = computed(() => true)
 
+    const normalizeMeasurementType = (measurementType) =>
+      String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = normalizeMeasurementType(measurementType)
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const isUnitMeasurement = (substance) => isUnitMeasurementType(substance?.measurement_type)
+
+    const getTotalAvailable = (substance) => {
+      if (isUnitMeasurement(substance)) {
+        return Number(substance?.unit_quantity || 0)
+      }
+      return Number(substance?.weight_net || 0)
+    }
+
+    const getUnitLabel = (substance) => (isUnitMeasurement(substance) ? 'und' : 'gr')
+
+    const formatTotalAvailable = (substance) => {
+      const total = getTotalAvailable(substance)
+      return isUnitMeasurement(substance) ? String(Math.trunc(total)) : total.toFixed(2)
+    }
+
     const isFormValid = computed(() => {
       if (!formData.value.destination) return false
 
-      // Validar que todas las sustancias tengan peso de muestra asignado y que muestra+contra <= peso total
+      // Validar que todas las sustancias tengan muestra asignada y que muestra+contra <= total disponible
       return props.selectedSubstances.every((substance) => {
         const obj = formData.value.individualWeights[substance.id] || {}
-        const sample = Number(obj.sample) || 0
-        const contra = Number(obj.contra) || 0
-        return sample > 0 && sample + contra <= Number(substance.weight_net || 0)
+        const sample =
+          obj.sample === null || obj.sample === undefined || obj.sample === ''
+            ? null
+            : Number(obj.sample)
+        const contra =
+          obj.contra === null || obj.contra === undefined || obj.contra === ''
+            ? 0
+            : Number(obj.contra)
+
+        if (sample === null || Number.isNaN(sample)) return false
+        if (Number.isNaN(contra)) return false
+
+        const totalAvailable = getTotalAvailable(substance)
+        if (
+          isUnitMeasurement(substance) &&
+          (!Number.isInteger(sample) || !Number.isInteger(contra))
+        ) {
+          return false
+        }
+
+        return sample >= 0 && contra >= 0 && sample + contra <= totalAvailable
       })
     })
 
@@ -260,7 +312,12 @@ export default {
       const obj = formData.value.individualWeights[substance.id] || {}
       const sample = Number(obj.sample || 0)
       const contra = Number(obj.contra || 0)
-      const restante = Number(substance.weight_net || 0) - sample - contra
+      const restante = getTotalAvailable(substance) - sample - contra
+
+      if (isUnitMeasurement(substance)) {
+        return String(restante > 0 ? Math.trunc(restante) : 0)
+      }
+
       return restante > 0 ? restante.toFixed(2) : '0.00'
     }
 
@@ -271,6 +328,10 @@ export default {
       closeDialog,
       submitForm,
       computeRestante,
+      isUnitMeasurement,
+      getTotalAvailable,
+      getUnitLabel,
+      formatTotalAvailable,
     }
   },
 }

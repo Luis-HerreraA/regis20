@@ -196,8 +196,21 @@
 
           <!-- ⚖️ Segunda fila: pesos y unidad -->
           <div class="grid formgrid p-fluid align-items-end">
-            <div class="field col-12 md:col-3">
-              <label>Peso Bruto (gr)</label>
+            <div class="field col-12 md:col-2">
+              <label>Tipo de Medcion</label>
+              <Dropdown
+                v-model="newSubstance.measurement_type"
+                :options="unityOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Seleccione tipo de medición"
+                class="w-full"
+                :filter="true"
+              />
+            </div>
+
+            <div class="field col-12 md:col-3" v-show="!isUnitMeasurement">
+              <label>Peso Bruto</label>
               <InputNumber
                 v-model="newSubstance.weight"
                 :min="0"
@@ -207,8 +220,8 @@
               />
             </div>
 
-            <div class="field col-12 md:col-3">
-              <label>Peso Neto (gr)</label>
+            <div class="field col-12 md:col-3" v-show="!isUnitMeasurement">
+              <label>Peso Neto</label>
               <InputNumber
                 v-model="newSubstance.weight_net"
                 :min="0"
@@ -218,16 +231,27 @@
               />
             </div>
 
-            <div class="field col-12 md:col-3">
-              <label>Unidad</label>
+            <div class="field col-12 md:col-3" v-show="newSubstance.measurement_type === 'OTROS'">
+              <label>Otra unidad</label>
               <InputText
-                v-model="newSubstance.unity"
-                placeholder="Ej: gramos, ml..."
+                v-model="newSubstance.other_unity"
+                placeholder="Ej: cápsulas, frascos..."
                 class="w-full"
               />
             </div>
 
-            <div class="field col-12 md:col-3">
+            <div class="field col-12 md:col-3" v-show="isUnitMeasurement">
+              <label>Cantidad</label>
+              <InputNumber
+                v-model="newSubstance.unit_quantity"
+                :min="0"
+                mode="decimal"
+                :maxFractionDigits="2"
+                class="w-full"
+              />
+            </div>
+
+            <div class="field col-12 md:col-2">
               <label>NUE</label>
               <InputText
                 v-model="newSubstance.nue"
@@ -254,7 +278,7 @@
                 icon="pi pi-plus"
                 label="Agregar"
                 @click="addSubstance"
-                :disabled="!newSubstance.substanceType || !newSubstance.weight"
+                :disabled="!isNewSubstanceValid"
                 class="mt-4 w-full"
               />
             </div>
@@ -271,15 +295,34 @@
             </Column>
             <Column field="weight" header="Peso (gr)">
               <template #body="slotProps">
-                {{ slotProps.data.weight?.toFixed(2) }}
+                {{
+                  isUnitMeasurementType(slotProps.data.measurement_type)
+                    ? '-'
+                    : Number(slotProps.data.weight || 0).toFixed(2)
+                }}
               </template>
             </Column>
             <Column field="weight_net" header="Peso Neto (gr)">
               <template #body="slotProps">
-                {{ Number(slotProps.data.weight_net || 0).toFixed(2) }}
+                {{
+                  isUnitMeasurementType(slotProps.data.measurement_type)
+                    ? '-'
+                    : Number(slotProps.data.weight_net || 0).toFixed(2)
+                }}
               </template>
             </Column>
-            <Column field="unity" header="Unidad"></Column>
+            <Column field="measurement_type" header="Tipo de Medcion"></Column>
+            <Column field="unit_quantity" header="Cantidad">
+              <template #body="slotProps">
+                {{
+                  slotProps.data.unit_quantity === null ||
+                  slotProps.data.unit_quantity === undefined ||
+                  slotProps.data.unit_quantity === ''
+                    ? '-'
+                    : slotProps.data.unit_quantity
+                }}
+              </template>
+            </Column>
             <Column field="packaging" header="Contenedor">
               <template #body="slotProps">
                 {{ getPackagingName(slotProps.data.packaging) }}
@@ -290,7 +333,11 @@
                 {{ getCommuneName(slotProps.data.commune) }}
               </template>
             </Column>
-            <Column field="description" header="Descripción"></Column>
+            <Column field="description" header="Descripción">
+              <template #body="slotProps">
+                {{ slotProps.data.description ? slotProps.data.description : '-' }}
+              </template>
+            </Column>
             <Column header="Acciones" bodyStyle="text-align:center">
               <template #body="slotProps">
                 <Button
@@ -326,7 +373,7 @@
   </div>
 </template>
 <script>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import Calendar from 'primevue/calendar'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -427,13 +474,202 @@ export default {
     const newSubstance = reactive({
       nue: '',
       description: '',
+      measurement_type: 'PESO',
+      unit_quantity: null,
       weight: null,
       weight_net: null, // 🆕 peso neto
       unity: '', // 🆕 unidad de medida
+      other_unity: '',
       substanceType: null,
       packaging: null,
       commune: null,
     })
+
+    const unityOptions = [
+      { label: 'Gramos', value: 'GRAMOS' },
+      { label: 'Kilogramos', value: 'KILOGRAMOS' },
+      { label: 'Mililitros', value: 'MILILITROS' },
+      { label: 'Litros', value: 'LITROS' },
+      { label: 'Paquete', value: 'PAQUETE' },
+      { label: 'Unidad', value: 'UNIDAD' },
+      { label: 'Otros', value: 'OTROS' },
+    ]
+
+    const normalizeValue = (value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase()
+
+    const getResolvedUnity = (substance) => {
+      if (normalizeValue(substance.unity) === 'otros') {
+        return String(substance.other_unity || '').trim()
+      }
+
+      return substance.unity
+    }
+
+    const getResolvedMeasurementType = (substance) => {
+      if (normalizeValue(substance.measurement_type) === 'otros') {
+        return String(substance.other_unity || '').trim()
+      }
+
+      return substance.measurement_type
+    }
+
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const isUnitMeasurement = computed(() => {
+      return isUnitMeasurementType(getResolvedMeasurementType(newSubstance))
+    })
+
+    const isNewSubstanceValid = computed(() => {
+      if (!newSubstance.substanceType) return false
+
+      if (!normalizeValue(newSubstance.measurement_type)) return false
+
+      if (
+        normalizeValue(newSubstance.measurement_type) === 'otros' &&
+        !normalizeValue(newSubstance.other_unity)
+      ) {
+        return false
+      }
+
+      if (isUnitMeasurement.value) {
+        return Number(newSubstance.unit_quantity || 0) > 0
+      }
+
+      return Number(newSubstance.weight || 0) > 0
+    })
+
+    const validateSubstanceData = (substance, index = null) => {
+      const rowLabel = index !== null ? `sustancia N°${index + 1}` : 'sustancia'
+      const isUnit = isUnitMeasurementType(getResolvedMeasurementType(substance))
+
+      if (!substance.substanceType) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Dato faltante',
+          detail: `Debe seleccionar tipo de sustancia en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (!normalizeValue(substance.measurement_type)) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Tipo de medición requerido',
+          detail: `Debe ingresar el tipo de medición en ${rowLabel} (ej: gramos, paquete).`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (
+        normalizeValue(substance.measurement_type) === 'otros' &&
+        !normalizeValue(substance.other_unity)
+      ) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Tipo de medición requerido',
+          detail: `Debe especificar el otro tipo de medición en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (isUnit) {
+        if (Number(substance.unit_quantity || 0) <= 0) {
+          toast.add({
+            severity: 'warn',
+            summary: 'Cantidad inválida',
+            detail: `La cantidad debe ser mayor a 0 en ${rowLabel}.`,
+            life: 3500,
+          })
+          return false
+        }
+      } else {
+        if (Number(substance.weight || 0) <= 0) {
+          toast.add({
+            severity: 'warn',
+            summary: 'Peso inválido',
+            detail: `El peso bruto debe ser mayor a 0 en ${rowLabel}.`,
+            life: 3500,
+          })
+          return false
+        }
+
+        if (
+          substance.weight_net !== null &&
+          substance.weight_net !== undefined &&
+          Number(substance.weight_net) > Number(substance.weight)
+        ) {
+          toast.add({
+            severity: 'warn',
+            summary: 'Pesos inconsistentes',
+            detail: `El peso neto no puede ser mayor al peso bruto en ${rowLabel}.`,
+            life: 3500,
+          })
+          return false
+        }
+      }
+
+      return true
+    }
+
+    const validateNoDuplicateNue = (substances) => {
+      const seen = new Map()
+
+      for (let index = 0; index < substances.length; index += 1) {
+        const substance = substances[index]
+        const nue = normalizeValue(substance.nue)
+        if (!nue) continue
+
+        if (seen.has(nue)) {
+          const firstIndex = seen.get(nue)
+          toast.add({
+            severity: 'warn',
+            summary: 'NUE duplicado',
+            detail: `El NUE está repetido entre sustancias N°${firstIndex + 1} y N°${index + 1}.`,
+            life: 4000,
+          })
+          return false
+        }
+
+        seen.set(nue, index)
+      }
+
+      return true
+    }
+
+    const validateFormBeforeSave = () => {
+      if (rutError.value) {
+        toast.add({
+          severity: 'warn',
+          summary: 'RUT inválido',
+          detail: 'Corrija el RUT del policía antes de guardar.',
+          life: 3500,
+        })
+        return false
+      }
+
+      if (!validateNoDuplicateNue(form.substances)) return false
+
+      for (let index = 0; index < form.substances.length; index += 1) {
+        if (!validateSubstanceData(form.substances[index], index)) return false
+      }
+
+      return true
+    }
 
     const fetchDropdownData = async () => {
       try {
@@ -491,6 +727,18 @@ export default {
           rutError.value = 'RUT inválido'
         } else {
           rutError.value = ''
+        }
+      },
+    )
+
+    watch(
+      () => [newSubstance.measurement_type, newSubstance.other_unity],
+      () => {
+        if (isUnitMeasurement.value) {
+          newSubstance.weight = null
+          newSubstance.weight_net = null
+        } else {
+          newSubstance.unit_quantity = null
         }
       },
     )
@@ -559,11 +807,14 @@ export default {
       Object.assign(newSubstance, {
         nue: '',
         description: '',
+        measurement_type: 'PESO',
+        unit_quantity: null,
         weight: null,
         substanceType: null,
         packaging: null,
         weight_net: null, // 🆕 peso neto
         unity: '',
+        other_unity: '',
         commune: null,
       })
       isNewPolice.value = false
@@ -622,19 +873,56 @@ export default {
     }
 
     const addSubstance = () => {
-      if (!newSubstance.substanceType || !newSubstance.weight) return
+      if (!isNewSubstanceValid.value) return
+
+      if (!validateSubstanceData(newSubstance)) return
+
+      const newNue = normalizeValue(newSubstance.nue)
+      if (newNue) {
+        const isDuplicateNue = form.substances.some(
+          (substance) => normalizeValue(substance.nue) === newNue,
+        )
+        if (isDuplicateNue) {
+          toast.add({
+            severity: 'warn',
+            summary: 'NUE duplicado',
+            detail: 'Ya existe una sustancia con ese NUE.',
+            life: 3500,
+          })
+          return
+        }
+      }
 
       // Asignar número correlativo a la sustancia
       const nsubstance = form.substances.length + 1
-      form.substances.push({ ...newSubstance, nsubstance })
+      const substanceToAdd = {
+        ...newSubstance,
+        nsubstance,
+      }
+
+      substanceToAdd.measurement_type = getResolvedMeasurementType(substanceToAdd)
+      substanceToAdd.other_unity = ''
+      substanceToAdd.description = String(substanceToAdd.description || '').trim() || null
+
+      if (isUnitMeasurementType(getResolvedMeasurementType(substanceToAdd))) {
+        substanceToAdd.weight = null
+        substanceToAdd.weight_net = null
+      } else {
+        substanceToAdd.unit_quantity = null
+      }
+
+      form.substances.push(substanceToAdd)
 
       // Limpiar formulario de nueva sustancia
       Object.assign(newSubstance, {
         nue: '',
         description: '',
+        measurement_type: 'PESO',
+        unit_quantity: null,
         weight: null,
         weight_net: null,
         unity: '',
+        other_unity: '',
         substanceType: null,
         packaging: null,
         commune: null,
@@ -660,6 +948,10 @@ export default {
 
       // Agregar la sustancia duplicada después de la actual
       form.substances.splice(index + 1, 0, newSubstance)
+
+      form.substances.forEach((substance, idx) => {
+        substance.nsubstance = idx + 1
+      })
     }
 
     const buscarPolicia = async () => {
@@ -756,6 +1048,8 @@ export default {
 
     const guardarBorrador = async () => {
       try {
+        if (!validateFormBeforeSave()) return
+
         isSaving.value = true
 
         // 1. Primero crear la recepción
@@ -796,9 +1090,12 @@ export default {
               nsubstance: substance.nsubstance,
               nue: substance.nue,
               description: substance.description,
+              measurement_type: getResolvedMeasurementType(substance),
+              unit_quantity: isUnitMeasurementType(getResolvedMeasurementType(substance))
+                ? substance.unit_quantity
+                : null,
               weight: substance.weight,
               weight_net: substance.weight_net, // 🆕
-              unity: substance.unity, // 🆕
               reception: receptionResponse.data,
               substanceType: substance.substanceType ? { id: substance.substanceType } : null,
               packaging: substance.packaging ? { id: substance.packaging } : null,
@@ -845,6 +1142,8 @@ export default {
 
     const guardarRecepcion = async () => {
       try {
+        if (!validateFormBeforeSave()) return
+
         isSaving.value = true
 
         // 🟢 Si el policía no existía, primero crearlo
@@ -876,9 +1175,12 @@ export default {
               nsubstance: substance.nsubstance,
               nue: substance.nue,
               description: substance.description,
+              measurement_type: getResolvedMeasurementType(substance),
+              unit_quantity: isUnitMeasurementType(getResolvedMeasurementType(substance))
+                ? substance.unit_quantity
+                : null,
               weight: substance.weight,
               weight_net: substance.weight_net, // 🆕
-              unity: substance.unity, // 🆕
               reception: receptionResponse.data,
               substanceType: substance.substanceType ? { id: substance.substanceType } : null,
               packaging: substance.packaging ? { id: substance.packaging } : null,
@@ -963,6 +1265,11 @@ export default {
       rutError,
       isNewPolice,
       newSubstance,
+      unityOptions,
+      isUnitMeasurement,
+      isUnitMeasurementType,
+      isNewSubstanceValid,
+      validateFormBeforeSave,
       openDialog,
       closeDialog,
       addSubstance,

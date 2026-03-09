@@ -572,6 +572,8 @@ export default {
       nsubstance: null,
       nue: '',
       description: '',
+      measurement_type: null,
+      unit_quantity: null,
       weight: null,
       weight_net: null,
       unity: null,
@@ -703,6 +705,8 @@ export default {
         id: null,
         nue: '',
         description: '',
+        measurement_type: null,
+        unit_quantity: null,
         weight: null,
         weight_net: null,
         unity: null,
@@ -768,6 +772,8 @@ export default {
           nsubstance: s.nsubstance ?? null,
           nue: s.nue ?? s.nue ?? '',
           description: s.description ?? '',
+          measurement_type: s.measurement_type ?? s.measurementType ?? s.unity ?? null,
+          unit_quantity: s.unit_quantity ?? s.unitQuantity ?? null,
           weight: s.weight ?? null,
           weight_net: s.weight_net ?? null,
           unity: s.unity ?? null,
@@ -797,6 +803,8 @@ export default {
           nsubstance: s.nsubstance ?? null,
           nue: s.nue ?? '',
           description: s.description ?? '',
+          measurement_type: s.measurement_type ?? s.measurementType ?? s.unity ?? null,
+          unit_quantity: s.unit_quantity ?? s.unitQuantity ?? null,
           weight: s.weight ?? null,
           weight_net: s.weight_net ?? null,
           unity: s.unity ?? null,
@@ -876,6 +884,8 @@ export default {
         nsubstance: editingSubstance.nsubstance ?? null,
         nue: editingSubstance.nue,
         description: editingSubstance.description,
+        measurement_type: editingSubstance.measurement_type,
+        unit_quantity: editingSubstance.unit_quantity,
         weight: editingSubstance.weight,
         weight_net: editingSubstance.weight_net,
         unity: editingSubstance.unity,
@@ -900,6 +910,8 @@ export default {
         nsubstance: null,
         nue: '',
         description: '',
+        measurement_type: null,
+        unit_quantity: null,
         weight: null,
         weight_net: null,
         unity: null,
@@ -917,6 +929,8 @@ export default {
       editingSubstance.nsubstance = s.nsubstance ?? null
       editingSubstance.nue = s.nue ?? ''
       editingSubstance.description = s.description ?? ''
+      editingSubstance.measurement_type = s.measurement_type ?? s.measurementType ?? s.unity ?? null
+      editingSubstance.unit_quantity = s.unit_quantity ?? s.unitQuantity ?? null
       editingSubstance.weight = s.weight ?? null
       editingSubstance.weight_net = s.weight_net ?? null
       editingSubstance.unity = s.unity ?? null
@@ -943,6 +957,8 @@ export default {
           nsubstance: null,
           nue: '',
           description: '',
+          measurement_type: null,
+          unit_quantity: null,
           weight: null,
           weight_net: null,
           unity: null,
@@ -1020,15 +1036,22 @@ export default {
           console.log('💊 Actualizando/creando sustancias asociadas...')
 
           const promises = form.substances.map((s) => {
+            const resolvedMeasurementType =
+              s.measurement_type ?? s.measurementType ?? s.unity ?? null
             const substancePayload = {
               ...(s.id ? { id: s.id } : {}),
               nsubstance: s.nsubstance ?? null,
               nue: s.nue,
               description: s.description,
+              measurement_type: resolvedMeasurementType,
+              unit_quantity:
+                s.unit_quantity !== undefined && s.unit_quantity !== null
+                  ? Number(s.unit_quantity)
+                  : null,
               weight: s.weight !== undefined && s.weight !== null ? Number(s.weight) : null,
               weight_net:
                 s.weight_net !== undefined && s.weight_net !== null ? Number(s.weight_net) : null,
-              unity: s.unity,
+              unity: s.unity ?? resolvedMeasurementType,
               reception: form,
               substanceType: s.substanceType ? { id: s.substanceType } : null,
               packaging: s.packaging ? { id: s.packaging } : null,
@@ -1141,15 +1164,22 @@ export default {
         if (form.substances && form.substances.length > 0) {
           console.log('💊 Actualizando/creando sustancias asociadas...')
           const promises = form.substances.map((s) => {
+            const resolvedMeasurementType =
+              s.measurement_type ?? s.measurementType ?? s.unity ?? null
             const substancePayload = {
               ...(s.id ? { id: s.id } : {}),
               nsubstance: s.nsubstance ?? null,
               nue: s.nue,
               description: s.description,
+              measurement_type: resolvedMeasurementType,
+              unit_quantity:
+                s.unit_quantity !== undefined && s.unit_quantity !== null
+                  ? Number(s.unit_quantity)
+                  : null,
               weight: s.weight !== undefined && s.weight !== null ? Number(s.weight) : null,
               weight_net:
                 s.weight_net !== undefined && s.weight_net !== null ? Number(s.weight_net) : null,
-              unity: s.unity,
+              unity: s.unity ?? resolvedMeasurementType,
               reception: form,
               substanceType: s.substanceType ? { id: s.substanceType } : null,
               packaging: s.packaging ? { id: s.packaging } : null,

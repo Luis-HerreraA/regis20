@@ -51,13 +51,21 @@
 
               <div class="col-12 md:col-6">
                 <div class="field small">
-                  <label class="muted">Peso muestreado (g)</label>
+                  <label class="muted">{{
+                    getSampledFieldLabel(form.preAnalysis?.substance)
+                  }}</label>
                   <div class="value">{{ form.preAnalysis?.weight_sampled ?? '—' }}</div>
                 </div>
                 <div class="field small">
                   <label class="muted">Sustancia</label>
                   <div class="value">
                     {{ form.preAnalysis?.substance?.substanceType?.name || '—' }}
+                  </div>
+                </div>
+                <div class="field small">
+                  <label class="muted">Tipo de medición</label>
+                  <div class="value">
+                    {{ form.preAnalysis?.substance?.measurement_type || '—' }}
                   </div>
                 </div>
               </div>
@@ -341,6 +349,18 @@ export default {
       }
     }
 
+    const getSampledFieldLabel = (substance) => {
+      const measurementType = String(substance?.measurement_type || '')
+        .trim()
+        .toLowerCase()
+
+      if (measurementType.includes('unidad') || measurementType.includes('paquete')) {
+        return 'Cantidad muestreada (und)'
+      }
+
+      return 'Peso muestreado (g)'
+    }
+
     const editor = ref(null)
 
     // cuando se abre el diálogo, no necesita inicializar editor
@@ -362,6 +382,7 @@ export default {
       handleClose,
       submit,
       stateSeverity,
+      getSampledFieldLabel,
       isSaving,
     }
   },

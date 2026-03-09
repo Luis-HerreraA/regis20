@@ -27,17 +27,18 @@
               {{ slotProps.data.substance?.reception?.number || '—' }}
             </template>
           </Column>
-          <Column header="Peso (gr)" :style="{ width: '120px' }">
+          <Column header="Cantidad" :style="{ width: '140px' }">
             <template #body="slotProps">
-              {{ Number(slotProps.data.counter_sample_quantity || 0).toFixed(2) }}
+              {{ formatStorageAmount(slotProps.data) }} {{ getStorageUnitLabel(slotProps.data) }}
             </template>
           </Column>
         </DataTable>
 
         <div class="mt-3 flex justify-content-end">
-          <p class="text-lg font-bold">
-            Peso Total: <span class="text-primary">{{ totalWeight.toFixed(2) }} gr</span>
+          <p class="text-lg font-bold" v-if="!hasMixedUnits">
+            Total: <span class="text-primary">{{ formattedTotalAmount }} {{ totalUnitLabel }}</span>
           </p>
+          <p class="text-sm text-500" v-else>Selección con distintos tipos de medición</p>
         </div>
       </div>
 
@@ -111,11 +112,57 @@ export default {
       observation: '',
     })
 
-    // Calcular peso total de todos los storages seleccionados
-    const totalWeight = computed(() => {
-      return props.selectedStorages.reduce((total, storage) => {
-        return total + Number(storage.counter_sample_quantity || 0)
-      }, 0)
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const getStorageUnitLabel = (storage) => {
+      const measurementType = storage?.measurement_type || storage?.substance?.measurement_type
+      return isUnitMeasurementType(measurementType) ? 'und' : 'gr'
+    }
+
+    const getStorageAmount = (storage) => {
+      if (getStorageUnitLabel(storage) === 'und') {
+        return Number(
+          storage?.unit_quantity !== undefined && storage?.unit_quantity !== null
+            ? storage.unit_quantity
+            : storage?.counter_sample_quantity || 0,
+        )
+      }
+
+      return Number(storage?.counter_sample_quantity || 0)
+    }
+
+    const formatStorageAmount = (storage) => {
+      const amount = getStorageAmount(storage)
+      return getStorageUnitLabel(storage) === 'und' ? String(Math.trunc(amount)) : amount.toFixed(2)
+    }
+
+    const hasMixedUnits = computed(() => {
+      if (!props.selectedStorages.length) return false
+      const labels = new Set(props.selectedStorages.map((storage) => getStorageUnitLabel(storage)))
+      return labels.size > 1
+    })
+
+    const totalAmount = computed(() => {
+      return props.selectedStorages.reduce((total, storage) => total + getStorageAmount(storage), 0)
+    })
+
+    const totalUnitLabel = computed(() => {
+      if (!props.selectedStorages.length || hasMixedUnits.value) return ''
+      return getStorageUnitLabel(props.selectedStorages[0])
+    })
+
+    const formattedTotalAmount = computed(() => {
+      if (totalUnitLabel.value === 'und') return String(Math.trunc(totalAmount.value))
+      return totalAmount.value.toFixed(2)
     })
 
     // Limpiar formulario cuando se abre/cierra el diálogo
@@ -146,7 +193,11 @@ export default {
 
     return {
       formData,
-      totalWeight,
+      hasMixedUnits,
+      totalUnitLabel,
+      formattedTotalAmount,
+      getStorageUnitLabel,
+      formatStorageAmount,
       closeDialog,
       submitForm,
     }

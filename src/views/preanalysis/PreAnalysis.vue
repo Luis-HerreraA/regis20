@@ -169,9 +169,44 @@
                           <Column field="nsubstance" header="N°" />
 
                           <Column field="nue" header="NUE" />
-                          <Column field="unity" header="Unidad" />
-                          <Column field="weight" header="Peso (gr)" />
-                          <Column field="weight_net" header="Peso Neto(gr)" />
+                          <Column field="measurement_type" header="Tipo Medición">
+                            <template #body="slotProps">
+                              {{ slotProps.data.measurement_type || '-' }}
+                            </template>
+                          </Column>
+                          <Column field="unit_quantity" header="Cantidad">
+                            <template #body="slotProps">
+                              {{
+                                slotProps.data.unit_quantity === null ||
+                                slotProps.data.unit_quantity === undefined ||
+                                slotProps.data.unit_quantity === ''
+                                  ? '-'
+                                  : slotProps.data.unit_quantity
+                              }}
+                            </template>
+                          </Column>
+                          <Column field="weight" header="Peso Bruto">
+                            <template #body="slotProps">
+                              {{
+                                slotProps.data.weight === null ||
+                                slotProps.data.weight === undefined ||
+                                slotProps.data.weight === ''
+                                  ? '-'
+                                  : slotProps.data.weight
+                              }}
+                            </template>
+                          </Column>
+                          <Column field="weight_net" header="Peso Neto">
+                            <template #body="slotProps">
+                              {{
+                                slotProps.data.weight_net === null ||
+                                slotProps.data.weight_net === undefined ||
+                                slotProps.data.weight_net === ''
+                                  ? '-'
+                                  : slotProps.data.weight_net
+                              }}
+                            </template>
+                          </Column>
                           <Column field="substanceType.name" header="Tipo" />
                           <Column field="state" header="Estado" />
                         </DataTable>
@@ -782,6 +817,25 @@ export default {
       showBulkPreAnalysisDialog.value = true
     }
 
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const getSubstanceTotalAvailable = (substance) => {
+      if (isUnitMeasurementType(substance?.measurement_type)) {
+        return Number(substance?.unit_quantity || 0)
+      }
+
+      return Number(substance?.weight_net || 0)
+    }
+
     const closeBulkDialog = () => {
       showBulkPreAnalysisDialog.value = false
       selectedReceptionForBulk.value = null
@@ -802,8 +856,8 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const restante =
-              Number(substance.weight || 0) - Number(sampleWeight || 0) - contraWeight
+            const totalAvailable = getSubstanceTotalAvailable(substance)
+            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
             return sum + (restante > 0 ? restante : 0)
           }, 0)
 
@@ -833,12 +887,12 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const restante =
-              Number(substance.weight || 0) - Number(sampleWeight || 0) - contraWeight
+            const totalAvailable = getSubstanceTotalAvailable(substance)
+            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
 
-            if (!sampleWeight || sampleWeight <= 0) throw new Error('Peso de muestra inválido')
-            if (sampleWeight + contraWeight > Number(substance.weight || 0))
-              throw new Error('La suma de muestra y contramuestra excede el peso total')
+            if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
+            if (sampleWeight + contraWeight > totalAvailable)
+              throw new Error('La suma de muestra y contramuestra excede el total disponible')
 
             // 1) Crear pre-análisis (va a análisis)
             const payloadPre = {
@@ -877,11 +931,14 @@ export default {
             let createdStorageId = null
             if (contraWeight > 0) {
               try {
+                const isUnitMeasurement = isUnitMeasurementType(substance?.measurement_type)
                 // storagesService guarda el registro de almacenamiento
                 const { data: createdStorage } = await storagesService.create({
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
+                  measurement_type: substance?.measurement_type || null,
+                  unit_quantity: isUnitMeasurement ? contraWeight : null,
                   description: '',
                   substance: substance,
                   storageLocation: { id: 1 },
@@ -895,9 +952,12 @@ export default {
             // 3️⃣ Si hay restante para destrucción Y existe el header, crear SOLO el detail
             if (restante > 0 && destructionHeader) {
               try {
+                const isUnitMeasurement = isUnitMeasurementType(substance?.measurement_type)
                 const destructionDetailPayload = {
                   state: 'PENDIENTE',
                   weight: restante,
+                  measurement_type: substance?.measurement_type || null,
+                  unit_quantity: isUnitMeasurement ? restante : null,
                   destructionHeader: destructionHeader,
                   substance: substance,
                 }
