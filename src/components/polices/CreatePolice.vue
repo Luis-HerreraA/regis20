@@ -1,5 +1,6 @@
 <template>
   <div class="card flex justify-center">
+    <Toast />
     <Button label="Crear Policía" @click="openDialog">
       <template #icon>
         <font-awesome-icon icon="fa-solid fa-plus" />
@@ -141,6 +142,7 @@
 
 <script>
 import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import policeService from '@/services/policesService'
 import institutionTypeService from '@/services/institutionTypesService'
 import gradeService from '@/services/gradesService'
@@ -149,11 +151,12 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown'
 import ProgressSpinner from 'primevue/progressspinner'
+import Toast from 'primevue/toast'
 import { formatRut, validateRut } from '@/others/verificationRut'
 
 export default {
   name: 'CreatePolice',
-  components: { InputText, Button, Dialog, Dropdown, ProgressSpinner },
+  components: { InputText, Button, Dialog, Dropdown, ProgressSpinner, Toast },
   emits: ['created'],
 
   setup(props, { emit }) {
@@ -161,6 +164,7 @@ export default {
     const isLoading = ref(false)
     const institutionTypes = ref([])
     const allGrades = ref([]) // Almacena todos los grados
+    const toast = useToast()
 
     const form = reactive({
       firstName: '',
@@ -243,13 +247,23 @@ export default {
         !form.institutionType ||
         !form.grade
       ) {
-        console.error('❌ Todos los campos marcados con * son requeridos')
+        toast.add({
+          severity: 'error',
+          summary: 'Campos faltantes',
+          detail: 'Por favor completa todos los campos marcados con *',
+          life: 3000,
+        })
         return
       }
       const rutLimpio = cleanRut(form.rut)
       // 🔎 Validación real
       if (!validateRut(rutLimpio)) {
-        console.error('❌ RUT inválido')
+        toast.add({
+          severity: 'error',
+          summary: 'RUT inválido',
+          detail: 'Por favor verifica que el RUT sea correcto',
+          life: 3000,
+        })
         return
       }
       try {
@@ -270,9 +284,21 @@ export default {
         console.log('📤 Payload enviado:', payload)
 
         const { data } = await policeService.create(payload)
+        toast.add({
+          severity: 'success',
+          summary: 'Éxito',
+          detail: 'Policía creada correctamente',
+          life: 3000,
+        })
         emit('created')
         closeDialog()
       } catch (e) {
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Ocurrió un error al crear la policía',
+          life: 3000,
+        })
         console.error('❌ Error al crear policía:', e)
       } finally {
         isLoading.value = false
