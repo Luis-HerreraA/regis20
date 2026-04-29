@@ -959,6 +959,21 @@ export default {
       try {
         buscandoPolicia.value = true
         const datos = await policeService.getByRut(form.police.rut)
+
+        // Verificar si el content está vacío
+        if (!datos.data.content || datos.data.content.length === 0) {
+          // 🔴 No encontrado
+          isNewPolice.value = true
+          toast.add({
+            severity: 'warn',
+            summary: 'Policía no existe',
+            detail:
+              'El policía no se encuentra en la base de datos. Favor ingresar en la base de datos.',
+            life: 4000,
+          })
+          return
+        }
+
         let data = datos.data.content[0]
         console.log(data.institutionType)
         data = { ...data, institution: data.institutionType.institution }
@@ -978,7 +993,8 @@ export default {
           toast.add({
             severity: 'warn',
             summary: 'No encontrado',
-            detail: 'El policía no se encuentra en la base de datos. Favor llenar la información.',
+            detail:
+              'El policía no se encuentra en la base de datos. Favor ingresar en la base de datos.',
             life: 4000,
           })
         }
