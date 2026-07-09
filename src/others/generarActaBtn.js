@@ -2,6 +2,16 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
 export const generarActaPDF = (form, substances) => {
+  const [day, month, year] = form.date_reception.split('-')
+
+  const fecha = new Date(year, month - 1, day).toLocaleDateString('es-CL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
+  console.log(fecha) // "22 de febrero de 2026"
+  console.log(fecha)
   const doc = new jsPDF('p', 'mm', 'a4')
   const policeName =
     `${form.police?.firstName || ''} ${form.police?.firstLastName || ''}`.trim() || '—'
@@ -24,15 +34,7 @@ export const generarActaPDF = (form, substances) => {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.text('Punta Arenas,', 130, 28)
-  doc.text(
-    new Date(form.date_reception).toLocaleDateString('es-CL', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    }),
-    155,
-    28,
-  )
+  doc.text(fecha, 155, 28)
 
   doc.setFontSize(10)
   doc.text(
@@ -55,8 +57,8 @@ export const generarActaPDF = (form, substances) => {
     { header: 'Muestra Nº', dataKey: 'n' },
     { header: 'Presunto', dataKey: 'presunto' },
     { header: 'NUE', dataKey: 'nue' },
-    { header: 'Tipo de Medición', dataKey: 'measurement_type' },
-    { header: 'Cantidad', dataKey: 'cantidad' },
+    { header: 'Unidad de Medición', dataKey: 'measurement_type' },
+    { header: 'Cantidad (Unidad)', dataKey: 'cantidad' },
     { header: 'Peso Bruto', dataKey: 'peso' },
     { header: 'Peso Neto', dataKey: 'peso_neto' },
     { header: 'Descripción muestra', dataKey: 'descripcion' },
