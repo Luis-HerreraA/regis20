@@ -3,15 +3,21 @@ import autoTable from 'jspdf-autotable'
 
 export const generarActaPDF = (form, substances) => {
   const [day, month, year] = form.date_reception.split('-')
+  const [ofday, ofmonth, ofyear] = form.of_number_date.split('-')
 
   const fecha = new Date(year, month - 1, day).toLocaleDateString('es-CL', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   })
+  const fecha2 = new Date(ofyear, ofmonth - 1, ofday).toLocaleDateString('es-CL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 
   console.log(fecha) // "22 de febrero de 2026"
-  console.log(fecha)
+  console.log(fecha2) // "22 de febrero de 2026"
   const doc = new jsPDF('p', 'mm', 'a4')
   const policeName =
     `${form.police?.firstName || ''} ${form.police?.firstLastName || ''}`.trim() || '—'
@@ -43,9 +49,7 @@ export const generarActaPDF = (form, substances) => {
     45,
   )
   doc.text(
-    `Ord N° ${form.of_number} con fecha ${new Date(form.of_number_date).toLocaleDateString(
-      'es-CL',
-    )} - ${(form.police?.institutionType?.institution?.name || '').toUpperCase()} - ${
+    `Ord N° ${form.of_number} con fecha ${fecha2} - ${(form.police?.institutionType?.institution?.name || '').toUpperCase()} - ${
       form.police?.institutionType?.commune?.name || '—'
     }`,
     15,
