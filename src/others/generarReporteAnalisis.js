@@ -73,7 +73,7 @@ export const generarReporteAnalisisPDF = (analysis) => {
   // ENCABEZADO PRINCIPAL
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  const protocolNumber = analysis.id || 'S/N'
+  const protocolNumber = analysis.number_protocol || 'S/N'
   const title = `PROTOCOLO DE ANÁLISIS Nº ${protocolNumber}`
 
   // Obtener ancho del texto para subrayar
@@ -94,18 +94,18 @@ export const generarReporteAnalisisPDF = (analysis) => {
   const sampleWeight = analysis.preAnalysis?.weight_sampled || 0
   const totalWeight = analysis.preAnalysis?.substance?.weight || 0
   const receptionDate =
-    analysis.preAnalysis?.reception?.reception_date || new Date().toISOString().split('T')[0]
+    analysis.preAnalysis?.reception?.date_reception || new Date().toISOString().split('T')[0]
 
   doc.text('ACTA DE RECEPCIÓN Nº', margin, yPos)
   doc.text(`: ${receptionNumber}`, margin + 90, yPos)
 
   yPos += 6
   doc.text('CANTIDAD RECEPCIONADA PARA ANÁLISIS', margin, yPos)
-  doc.text(`: ${sampleWeight} neto`, margin + 90, yPos)
+  doc.text(`: ${sampleWeight} gr`, margin + 90, yPos)
 
   yPos += 6
   doc.text('CANTIDAD RECEPCIONADA', margin, yPos)
-  doc.text(`: ${totalWeight} neto`, margin + 90, yPos)
+  doc.text(`: ${totalWeight} gr`, margin + 90, yPos)
 
   yPos += 6
   doc.text('FECHA DE RECEPCIÓN', margin, yPos)
