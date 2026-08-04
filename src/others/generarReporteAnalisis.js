@@ -57,7 +57,10 @@ const parseHtmlToTextSegments = (html) => {
  */
 export const generarReporteAnalisisPDF = (analysis) => {
   console.log(analysis)
-
+  const positivo =
+    'La Cannabis o marihuana es un producto vegetal que por su propia naturaleza contiene principios activos – en concreto el THC – que es un producto del metabolismo de la planta, de cuya composición forma parte con mayor o menor riqueza en cualquiera de sus partes y en mayor o menor proporción, según la calidad del cultivo, zona agrícola de procedencia y otras variables naturales. Si además, el producto vegetal no ha sufrido un proceso químico de purificación de los principios activos, no afecta la concentración de THC, por ende Cannabis 100% pura. La Muestra analizada corresponde en su totalidad a material vegetal con características propias de Cannabis, sin evidencia de mezcla con otros materiales herbáceos y/o proceso químico de purificación de principio activo, por lo que la muestra corresponde a Cannabis 100% pura.'
+  const negativo =
+    'En muestra analizada, no se detecta presencia de principio activo cannabis – en concreto THC – por lo que la muestra es negativa (-)'
   const doc = new jsPDF({
     compress: true,
   })
@@ -116,9 +119,14 @@ export const generarReporteAnalisisPDF = (analysis) => {
   // MUESTRA Nº
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
-  const substanceNue = analysis.preAnalysis?.substance?.nue || 'N/A'
-  doc.text(`MUESTRA Nº ${substanceNue}`, margin, yPos)
+  const substanceN = analysis.preAnalysis?.substance?.nsubstance || 'N/A'
+  doc.text(`SUSTANCIA DECOMISADA Nº ${substanceN}`, margin, yPos)
+  yPos += 12
 
+  // MUESTRA Nº
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text(`MUESTRA ANALIZADA`, margin, yPos)
   yPos += 10
 
   // 1.- EXAMEN MACROSCÓPICO
@@ -190,6 +198,20 @@ export const generarReporteAnalisisPDF = (analysis) => {
   yPos += 6
 
   // Parsear HTML y renderizar con formato
+  analysis.composition = ''
+  if (
+    analysis.macro === 'POSITIVO' &&
+    analysis.micro === 'POSITIVO' &&
+    analysis.result === 'POSITIVO'
+  ) {
+    analysis.composition = positivo
+  } else if (
+    analysis.macro === 'NEGATIVO' &&
+    analysis.micro === 'NEGATIVO' &&
+    analysis.result === 'NEGATIVO'
+  ) {
+    analysis.composition = negativo
+  }
   const compositionHtml = analysis.composition || 'Sin información de composición registrada.'
   const segments = parseHtmlToTextSegments(compositionHtml)
 
@@ -266,7 +288,7 @@ export const generarReporteAnalisisPDF = (analysis) => {
   doc.text(`Punta Arenas, ${analysisDate}.`, margin, yPos)
 
   // Generar y abrir PDF
-  const fileName = `Protocolo_Analisis_${protocolNumber}_${substanceNue}_${Date.now()}.pdf`
+  const fileName = `Protocolo_Analisis_${protocolNumber}_${substanceN}_${Date.now()}.pdf`
 
   // Comprimir antes de guardar
   doc.save(fileName)

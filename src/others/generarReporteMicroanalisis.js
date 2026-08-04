@@ -5,9 +5,9 @@ import autoTable from 'jspdf-autotable'
  * Genera el reporte de microanálisis (microscopía) en PDF
  * @param {Object} analysis - Datos del análisis completo con información de micro
  */
-export const generarReporteMicroanalisisPDF = (analysis) => {
+export const generarReporteMicroanalisisPDF = (analysis, micro) => {
   console.log(analysis)
-
+  console.log(micro)
   if (!analysis.micro) {
     console.error('No hay datos de microanálisis para generar el reporte')
     return
@@ -56,10 +56,10 @@ export const generarReporteMicroanalisisPDF = (analysis) => {
 
   const datosGenerales = [
     ['Laboratorio:', 'Servicio de Salud Magallanes'],
-    ['Analista:', analysis.user?.username || 'N/A'],
-    ['Fecha:', receptionDate],
+    ['Analista:', micro.data[0].user?.username || 'N/A'],
+    ['Fecha:', micro.data[0].date || 'N/A'],
     ['Número de Acta:', actaNumber],
-    ['Número de Muestra:', sampleNumber],
+    ['Número de Muestra:', micro.data[0].analysis.preAnalysis.substance.nsubstance || 'N/A'],
   ]
 
   autoTable(doc, {
@@ -90,11 +90,15 @@ export const generarReporteMicroanalisisPDF = (analysis) => {
 
   const microData = analysis.micro
 
-  doc.text(`- Tipo de muestra: ${microData.sample_type || 'N/A'}`, margin, yPos)
+  doc.text(
+    `- Tipo de muestra: Sustancia vegetal ${micro.data[0].analysis.gradeFrac || 'N/A'}`,
+    margin,
+    yPos,
+  )
   yPos += 5
   doc.text(`- Tipo de observación: Directa en seco (sin medio de montaje)`, margin, yPos)
   yPos += 5
-  doc.text(`- Aumento utilizado: ${microData.magnification || 'N/A'}`, margin, yPos)
+  doc.text(`- Aumento utilizado: ${micro.data[0].aumento || 'N/A'}`, margin, yPos)
 
   yPos += 10
 
@@ -107,12 +111,12 @@ export const generarReporteMicroanalisisPDF = (analysis) => {
 
   const estructurasData = [
     ['Estructura', 'Observada'],
-    ['Tricomas glandulares', microData.glandular_trichomes || 'N/A'],
-    ['Tricomas no glandulares', microData.non_glandular_trichomes || 'N/A'],
-    ['Estomas', microData.stomata || 'N/A'],
-    ['Células epidérmicas', microData.epidermal_cells || 'N/A'],
-    ['Células con resina', microData.resin_cells || 'N/A'],
-    ['Cristales (oxalato de calcio)', microData.calcium_oxalate_crystals || 'N/A'],
+    ['Tricomas glandulares', micro.data[0].ttgland || 'N/A'],
+    ['Tricomas no glandulares', micro.data[0].ttnogland || 'N/A'],
+    ['Estomas', micro.data[0].stomas || 'N/A'],
+    ['Células epidérmicas', micro.data[0].celepi || 'N/A'],
+    //  ['Células con resina', micro.data[0].celresi || 'N/A'],
+    //  ['Cristales (oxalato de calcio)', micro.data[0].cris || 'N/A'],
   ]
 
   autoTable(doc, {
@@ -154,7 +158,7 @@ export const generarReporteMicroanalisisPDF = (analysis) => {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
 
-  const conclusion = microData.conclusion || 'Sin conclusión registrada'
+  const conclusion = micro.data[0].conclution || 'Sin conclusión registrada'
   const conclusionLines = doc.splitTextToSize(conclusion, pageWidth - margin * 2)
   doc.text(conclusionLines, pageWidth / 2, yPos, { align: 'center' })
 
@@ -166,14 +170,17 @@ export const generarReporteMicroanalisisPDF = (analysis) => {
 
   // Línea para firma
   const signatureLineY = yPos + 10
+  const signatureImage = new Image()
+  signatureImage.src = '/firma/Jaime.jpg'
   doc.line(pageWidth / 2 - 40, signatureLineY, pageWidth / 2 + 40, signatureLineY)
+  doc.addImage(signatureImage, 'JPEG', pageWidth / 2 - 28, signatureLineY - 20, 56, 16)
 
   yPos = signatureLineY + 5
   doc.text('Firma del analista:', pageWidth / 2, yPos, { align: 'center' })
 
   yPos += 10
   doc.setFont('helvetica', 'bold')
-  doc.text(`Fecha: ${receptionDate}`, margin, yPos)
+  doc.text(`Fecha: ${new Date().toLocaleDateString('es-CL')}`, margin, yPos)
 
   // PIE DE PÁGINA
   yPos = pageHeight - 10

@@ -188,6 +188,7 @@ export default {
         observation: '',
         date: null,
         aumento: '',
+        conclution: '',
       }
     }
 
@@ -216,6 +217,10 @@ export default {
       }
 
       isSaving.value = true
+      let conclution =
+        formData.value.observation === 'Característico de Cannabis'
+          ? 'Se identifican estructuras compatibles con especie vegetal del género Cannabis'
+          : 'No se identifican estructuras compatibles con especie vegetal del género Cannabis'
       try {
         const payload = {
           ttgland: formData.value.ttgland || null,
@@ -223,6 +228,7 @@ export default {
           stomas: formData.value.stomas || null,
           celepi: formData.value.celepi || null,
           observation: formData.value.observation || null,
+          conclution: conclution || null,
           date: formData.value.date ? formatDate(formData.value.date) : null,
           aumento: formData.value.aumento || null,
           analysis: props.analysis,
@@ -264,6 +270,7 @@ export default {
             ...props.analysis,
             state: 'MICRO_COMPLETADO',
             micro: savedResult,
+            user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
           })
         } catch (stateErr) {
           console.warn('No se pudo actualizar el estado del análisis:', stateErr)

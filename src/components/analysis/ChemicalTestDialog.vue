@@ -208,6 +208,7 @@ export default {
             ...props.analysis,
             state: 'COMPLETADO',
             result: savedResult,
+            user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
           })
         } catch (stateErr) {
           console.warn('No se pudo actualizar el estado del análisis:', stateErr)

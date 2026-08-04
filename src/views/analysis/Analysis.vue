@@ -370,6 +370,7 @@ import methodsDestructionsService from '@/services/methodsDestructionsService.js
 import storagesService from '@/services/storagesService.js'
 import destructionsHeaderService from '@/services/destructionsHeaderService.js'
 import destructionDetailsService from '@/services/destructionDetailsService.js'
+import microanalysisService from '@/services/microanalysisService.js'
 
 import PreAnalysisDialog from '@/components/preanalysis/PreAnalysisDialog.vue'
 import BulkPreAnalysisDialog from '@/components/preanalysis/BulkPreAnalysisDialog.vue'
@@ -1648,7 +1649,8 @@ export default {
       }
     }
 
-    const printMicroanalysis = (analysis) => {
+    const printMicroanalysis = async (analysis) => {
+      const micro = await microanalysisService.getByAnalysisId(analysis.id)
       try {
         if (!analysis.micro) {
           toast.add({
@@ -1661,7 +1663,7 @@ export default {
         }
 
         // Generar PDF del microanálisis
-        generarReporteMicroanalisisPDF(analysis)
+        generarReporteMicroanalisisPDF(analysis, micro)
 
         toast.add({
           severity: 'success',

@@ -20,6 +20,10 @@ export default {
   update(id, data) {
     return axiosClient.put(`/api/v1/microanalysis/${id}`, data)
   },
+  // ✅ Obtener microanálisis por ID de análisis
+  getByAnalysisId(id) {
+    return axiosClient.get(`/api/v1/microanalysis/getByAnalysisId/${id}`)
+  },
 
   // ✅ Eliminar usuario
   delete(id) {

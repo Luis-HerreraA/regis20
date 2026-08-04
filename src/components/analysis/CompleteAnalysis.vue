@@ -307,6 +307,7 @@ export default {
           state: 'MACRO_COMPLETADO',
           macro: savedResult,
           result: null,
+          user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
         }
         const { data } = await analysisService.update(form.value.id, payload)
         toast.add({
