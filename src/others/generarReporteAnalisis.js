@@ -277,7 +277,7 @@ export const generarReporteAnalisisPDF = (analysis) => {
   doc.text(` ${analystName}`, pageWidth / 2, yPos, { align: 'center' })
   yPos += 4
   doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
+  doc.setFont('helvetica', 'normal')
   doc.text('QUÍMICO FARMACÉUTICO', pageWidth / 2, yPos, { align: 'center' })
   yPos += 3.5
   doc.setFont('helvetica', 'normal')
