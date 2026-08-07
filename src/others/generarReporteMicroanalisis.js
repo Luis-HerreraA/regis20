@@ -180,7 +180,7 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
 
   yPos += 10
   doc.setFont('helvetica', 'bold')
-  doc.text(`Fecha: ${new Date().toLocaleDateString('es-CL')}`, margin, yPos)
+  doc.text(`Fecha: ${micro.data[0].date}`, margin, yPos)
 
   // PIE DE PÁGINA
   yPos = pageHeight - 10
