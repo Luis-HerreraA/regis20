@@ -152,9 +152,9 @@
           <!-- Sustancias -->
           <div class="section-title mt-4">💊 Sustancias Asociadas</div>
 
-          <!-- 🧩 Primera fila: tipo, packaging, comuna -->
+          <!-- Primera fila: tipo y packaging -->
           <div class="grid formgrid p-fluid align-items-end">
-            <div class="field col-12 md:col-4">
+            <div class="field col-12 md:col-6">
               <label>Tipo de Sustancia</label>
               <Dropdown
                 v-model="newSubstance.substanceType"
@@ -167,7 +167,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-4">
+            <div class="field col-12 md:col-6">
               <label>Contenedor</label>
               <Dropdown
                 v-model="newSubstance.packaging"
@@ -175,19 +175,6 @@
                 optionLabel="name"
                 optionValue="id"
                 placeholder="Seleccione contenedor"
-                class="w-full"
-                :filter="true"
-              />
-            </div>
-
-            <div class="field col-12 md:col-4">
-              <label>Comuna</label>
-              <Dropdown
-                v-model="newSubstance.commune"
-                :options="communes"
-                optionLabel="name"
-                optionValue="id"
-                placeholder="Seleccione comuna"
                 class="w-full"
                 :filter="true"
               />
@@ -474,7 +461,7 @@ export default {
     const newSubstance = reactive({
       nue: '',
       description: '',
-      measurement_type: 'PESO',
+      measurement_type: 'GRAMOS',
       unit_quantity: null,
       weight: null,
       weight_net: null, // 🆕 peso neto
@@ -487,12 +474,13 @@ export default {
 
     const unityOptions = [
       { label: 'Gramos', value: 'GRAMOS' },
-      { label: 'Kilogramos', value: 'KILOGRAMOS' },
-      { label: 'Mililitros', value: 'MILILITROS' },
-      { label: 'Litros', value: 'LITROS' },
-      { label: 'Paquete', value: 'PAQUETE' },
-      { label: 'Unidad', value: 'UNIDAD' },
-      { label: 'Otros', value: 'OTROS' },
+
+      //  { label: 'Kilogramos', value: 'KILOGRAMOS' },
+      //  { label: 'Mililitros', value: 'MILILITROS' },
+      //  { label: 'Litros', value: 'LITROS' },
+      //  { label: 'Paquete', value: 'PAQUETE' },
+      //  { label: 'Unidad', value: 'UNIDAD' },
+      //  { label: 'Otros', value: 'OTROS' },
     ]
 
     const normalizeValue = (value) =>
@@ -743,6 +731,17 @@ export default {
       },
     )
 
+    watch(
+      () => form.police.institutionType?.commune?.id,
+      (communeId) => {
+        const selectedCommuneId = communeId || null
+        newSubstance.commune = selectedCommuneId
+        form.substances.forEach((substance) => {
+          substance.commune = selectedCommuneId
+        })
+      },
+    )
+
     const openDialog = async () => {
       visible.value = true
       isLoading.value = true
@@ -807,7 +806,7 @@ export default {
       Object.assign(newSubstance, {
         nue: '',
         description: '',
-        measurement_type: 'PESO',
+        measurement_type: 'GRAMOS',
         unit_quantity: null,
         weight: null,
         substanceType: null,
@@ -898,6 +897,7 @@ export default {
       const substanceToAdd = {
         ...newSubstance,
         nsubstance,
+        commune: form.police.institutionType?.commune?.id || null,
       }
 
       substanceToAdd.measurement_type = getResolvedMeasurementType(substanceToAdd)
@@ -917,7 +917,7 @@ export default {
       Object.assign(newSubstance, {
         nue: '',
         description: '',
-        measurement_type: 'PESO',
+        measurement_type: 'GRAMOS',
         unit_quantity: null,
         weight: null,
         weight_net: null,
@@ -1115,7 +1115,9 @@ export default {
               reception: receptionResponse.data,
               substanceType: substance.substanceType ? { id: substance.substanceType } : null,
               packaging: substance.packaging ? { id: substance.packaging } : null,
-              commune: substance.commune ? { id: substance.commune } : null,
+              commune: form.police.institutionType?.commune?.id
+                ? { id: form.police.institutionType.commune.id }
+                : null,
             }
             return substancesService.create(substancePayload)
           })
@@ -1200,7 +1202,9 @@ export default {
               reception: receptionResponse.data,
               substanceType: substance.substanceType ? { id: substance.substanceType } : null,
               packaging: substance.packaging ? { id: substance.packaging } : null,
-              commune: substance.commune ? { id: substance.commune } : null,
+              commune: form.police.institutionType?.commune?.id
+                ? { id: form.police.institutionType.commune.id }
+                : null,
             }
             return substancesService.create(substancePayload)
           })

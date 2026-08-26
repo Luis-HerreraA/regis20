@@ -29,18 +29,22 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
+import {
+  claimSessionWarning,
+  clearSession,
+  getRemainingSessionSeconds,
+} from '@/services/sessionService'
 
 const route = useRoute()
 const toast = useToast()
 
 // Constantes
-const SESSION_DURATION = 3600 // 1 hora en segundos
 const WARNING_THRESHOLD = 600 // 10 minutos para advertencia
 const CRITICAL_THRESHOLD = 300 // 5 minutos para crítico
 
-const remainingTime = ref(SESSION_DURATION)
-let lastUpdateTime = Date.now()
-let animationFrameId = null
+const remainingTime = ref(0)
+let timerIntervalId = null
+let isLoggingOut = false
 
 // Clase computada para el timer
 const timerClass = computed(() => {
@@ -85,34 +89,26 @@ const currentPageTitle = computed(() => {
   return titles[routeName] || ' '
 })
 
-// Sistema de tiempo preciso usando requestAnimationFrame
+// Calcular siempre desde la fecha absoluta de expiración.
 const updateTimer = () => {
-  const now = Date.now()
-  const elapsed = Math.floor((now - lastUpdateTime) / 1000)
-
-  if (elapsed > 0) {
-    remainingTime.value = Math.max(0, remainingTime.value - elapsed)
-    lastUpdateTime = now
-    saveTimerState()
-
-    // Verificar estados críticos
-    checkCriticalStates()
-  }
-
-  animationFrameId = requestAnimationFrame(updateTimer)
+  remainingTime.value = getRemainingSessionSeconds()
+  checkCriticalStates()
 }
 
 // Verificar estados críticos y mostrar advertencias
 const checkCriticalStates = () => {
-  // Solo mostrar advertencias una vez cuando se cruzan los umbrales
-  if (remainingTime.value === WARNING_THRESHOLD) {
-    showSessionWarning('Tu sesión expirará en 10 minutos', 'warn')
-  }
-  if (remainingTime.value === CRITICAL_THRESHOLD) {
-    showSessionWarning('¡Sesión por expirar! 5 minutos restantes', 'error')
-  }
-  if (remainingTime.value === 0) {
+  if (remainingTime.value <= 0) {
     logoutUser()
+    return
+  }
+
+  if (
+    remainingTime.value <= CRITICAL_THRESHOLD &&
+    claimSessionWarning('critical')
+  ) {
+    showSessionWarning('¡Sesión por expirar! 5 minutos restantes', 'error')
+  } else if (remainingTime.value <= WARNING_THRESHOLD && claimSessionWarning('warning')) {
+    showSessionWarning('Tu sesión expirará en 10 minutos', 'warn')
   }
 }
 
@@ -129,56 +125,26 @@ const showSessionWarning = (message, severity = 'warn') => {
 
 // Inicializar temporizador
 const initTimer = () => {
-  // Cargar estado guardado
-  const savedTime = localStorage.getItem('sessionTime')
-  const savedLastUpdate = localStorage.getItem('sessionLastUpdate')
+  updateTimer()
 
-  if (savedTime && savedLastUpdate) {
-    const elapsed = Math.floor((Date.now() - parseInt(savedLastUpdate)) / 1000)
-    remainingTime.value = Math.max(0, parseInt(savedTime) - elapsed)
-    console.log(`⏰ Tiempo cargado: ${remainingTime.value}s, transcurrido: ${elapsed}s`)
-  } else {
-    remainingTime.value = SESSION_DURATION
-    console.log('⏰ Nueva sesión iniciada: 1 hora')
+  if (!isLoggingOut) {
+    timerIntervalId = window.setInterval(updateTimer, 1000)
   }
-
-  lastUpdateTime = Date.now()
-  saveTimerState()
-
-  // Iniciar sistema de tiempo preciso
-  animationFrameId = requestAnimationFrame(updateTimer)
-}
-
-// Guardar estado del temporizador
-const saveTimerState = () => {
-  localStorage.setItem('sessionTime', remainingTime.value.toString())
-  localStorage.setItem('sessionLastUpdate', lastUpdateTime.toString())
 }
 
 // Cerrar sesión del usuario
 const logoutUser = () => {
+  if (isLoggingOut) return
+  isLoggingOut = true
+
   console.log('🔒 Cerrando sesión por tiempo expirado')
 
   // Limpiar recursos
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId)
+  if (timerIntervalId) {
+    clearInterval(timerIntervalId)
   }
 
-  // Limpiar localStorage
-  const sessionKeys = [
-    'userName',
-    'sessionTime',
-    'sessionLastUpdate',
-    'token',
-    'userRole',
-    'userId',
-    'userEmail',
-    'userRut',
-    'userData',
-  ]
-
-  sessionKeys.forEach((key) => localStorage.removeItem(key))
-  sessionStorage.clear()
+  clearSession()
 
   // Mostrar mensaje final
   toast.add({
@@ -200,8 +166,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId)
+  if (timerIntervalId) {
+    clearInterval(timerIntervalId)
   }
 })
 </script>

@@ -269,11 +269,11 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import { clearSession } from '@/services/sessionService'
 
-const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const showLogoutDialog = ref(false)
@@ -301,22 +301,7 @@ const showLogoutConfirmation = () => {
 
 // Confirmar cierre de sesión
 const confirmLogout = () => {
-  // Limpiar todas las variables del localStorage relacionadas con la sesión
-  const sessionKeys = [
-    'userName',
-    'sessionTime',
-    'sessionLastUpdate',
-    'token',
-    'userRole',
-    'userId',
-  ]
-
-  sessionKeys.forEach((key) => {
-    localStorage.removeItem(key)
-  })
-
-  // También limpiar sessionStorage por si acaso
-  sessionStorage.clear()
+  clearSession()
 
   // Cerrar el diálogo
   showLogoutDialog.value = false

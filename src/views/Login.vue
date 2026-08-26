@@ -66,6 +66,9 @@ import Password from 'primevue/password'
 import Button from 'primevue/button'
 import axiosClient from '@/services/axiosClient'
 import usersService from '@/services/usersService'
+import { startSession } from '@/services/sessionService'
+
+defineOptions({ name: 'LoginPage' })
 
 const router = useRouter()
 
@@ -138,8 +141,8 @@ const conectar = async () => {
     const data = response.data
     console.log('✅ Login exitoso:', data);
     
-    // 2. Guardar token y email
-    localStorage.setItem("token", data.token)
+    // 2. Iniciar una sesión nueva y guardar email
+    startSession(data.token, data.expires_in ?? data.expiresIn)
     localStorage.setItem("mail", user.email)
 
     // 3. Cargar datos adicionales del usuario

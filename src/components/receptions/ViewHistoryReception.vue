@@ -1,33 +1,36 @@
 <template>
   <div>
     <!-- Botón de historial -->
-    <Button 
-      icon="pi pi-history" 
+    <Button
+      icon="pi pi-history"
       class="p-button-text p-button-secondary"
       v-tooltip="'Ver historial de recepción'"
       @click="openDialog"
     />
 
     <!-- Modal con la tabla del historial -->
-    <Dialog 
-      v-model:visible="visible" 
-      modal 
+    <Dialog
+      v-model:visible="visible"
+      modal
       :header="`Historial de Recepción #${reception?.number || ''}`"
       :style="{ width: '60rem' }"
     >
       <template #default>
         <div v-if="loading" class="flex justify-center my-4">
-          <ProgressSpinner style="width:50px;height:50px" strokeWidth="4" />
+          <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
         </div>
 
         <div v-else>
-          <DataTable 
+          <DataTable
             :value="historyList"
+            paginator
+            :rows="5"
+            :rowsPerPageOptions="[5, 10, 20, 50]"
             responsiveLayout="scroll"
             class="p-datatable-striped p-datatable-gridlines"
           >
             <Column field="description" header="Descripción" style="width: 50%"></Column>
-            
+
             <Column header="Usuario" style="width: 25%">
               <template #body="slotProps">
                 {{ slotProps.data.user?.username || '—' }}
@@ -64,8 +67,8 @@ import receptionsHistoryService from '@/services/receptionsHistoryService.js'
 const props = defineProps({
   reception: {
     type: Object,
-    required: true
-  }
+    required: true,
+  },
 })
 
 // === Variables reactivas ===
@@ -91,7 +94,7 @@ const loadHistory = async () => {
       severity: 'error',
       summary: 'Error',
       detail: 'No se pudo cargar el historial de esta recepción',
-      life: 3000
+      life: 3000,
     })
   } finally {
     loading.value = false
