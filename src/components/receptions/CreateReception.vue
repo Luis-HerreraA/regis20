@@ -614,31 +614,6 @@ export default {
       return true
     }
 
-    const validateNoDuplicateNue = (substances) => {
-      const seen = new Map()
-
-      for (let index = 0; index < substances.length; index += 1) {
-        const substance = substances[index]
-        const nue = normalizeValue(substance.nue)
-        if (!nue) continue
-
-        if (seen.has(nue)) {
-          const firstIndex = seen.get(nue)
-          toast.add({
-            severity: 'warn',
-            summary: 'NUE duplicado',
-            detail: `El NUE está repetido entre sustancias N°${firstIndex + 1} y N°${index + 1}.`,
-            life: 4000,
-          })
-          return false
-        }
-
-        seen.set(nue, index)
-      }
-
-      return true
-    }
-
     const validateFormBeforeSave = () => {
       if (rutError.value) {
         toast.add({
@@ -649,8 +624,6 @@ export default {
         })
         return false
       }
-
-      if (!validateNoDuplicateNue(form.substances)) return false
 
       for (let index = 0; index < form.substances.length; index += 1) {
         if (!validateSubstanceData(form.substances[index], index)) return false
@@ -875,22 +848,6 @@ export default {
       if (!isNewSubstanceValid.value) return
 
       if (!validateSubstanceData(newSubstance)) return
-
-      const newNue = normalizeValue(newSubstance.nue)
-      if (newNue) {
-        const isDuplicateNue = form.substances.some(
-          (substance) => normalizeValue(substance.nue) === newNue,
-        )
-        if (isDuplicateNue) {
-          toast.add({
-            severity: 'warn',
-            summary: 'NUE duplicado',
-            detail: 'Ya existe una sustancia con ese NUE.',
-            life: 3500,
-          })
-          return
-        }
-      }
 
       // Asignar número correlativo a la sustancia
       const nsubstance = form.substances.length + 1
