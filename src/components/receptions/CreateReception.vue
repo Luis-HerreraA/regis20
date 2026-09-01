@@ -183,7 +183,7 @@
 
           <!-- ⚖️ Segunda fila: pesos y unidad -->
           <div class="grid formgrid p-fluid align-items-end">
-            <div class="field col-12 md:col-2">
+            <div class="field col-12 md:col-3">
               <label>Tipo de Medcion</label>
               <Dropdown
                 v-model="newSubstance.measurement_type"
@@ -196,7 +196,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-3" v-show="!isUnitMeasurement">
+            <div class="field col-12 md:col-2" v-show="!isUnitMeasurement">
               <label>Peso Bruto</label>
               <InputNumber
                 v-model="newSubstance.weight"
@@ -207,7 +207,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-3" v-show="!isUnitMeasurement">
+            <div class="field col-12 md:col-2" v-show="!isUnitMeasurement">
               <label>Peso Neto</label>
               <InputNumber
                 v-model="newSubstance.weight_net"
@@ -218,7 +218,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-3" v-show="newSubstance.measurement_type === 'OTROS'">
+            <div class="field col-12 md:col-2" v-show="newSubstance.measurement_type === 'OTROS'">
               <label>Otra unidad</label>
               <InputText
                 v-model="newSubstance.other_unity"
@@ -227,7 +227,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-3" v-show="isUnitMeasurement">
+            <div class="field col-12 md:col-2">
               <label>Cantidad</label>
               <InputNumber
                 v-model="newSubstance.unit_quantity"
@@ -238,7 +238,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-2">
+            <div class="field col-12 md:col-3">
               <label>NUE</label>
               <InputText
                 v-model="newSubstance.nue"
@@ -698,8 +698,6 @@ export default {
         if (isUnitMeasurement.value) {
           newSubstance.weight = null
           newSubstance.weight_net = null
-        } else {
-          newSubstance.unit_quantity = null
         }
       },
     )
@@ -864,8 +862,6 @@ export default {
       if (isUnitMeasurementType(getResolvedMeasurementType(substanceToAdd))) {
         substanceToAdd.weight = null
         substanceToAdd.weight_net = null
-      } else {
-        substanceToAdd.unit_quantity = null
       }
 
       form.substances.push(substanceToAdd)
@@ -1064,9 +1060,7 @@ export default {
               nue: substance.nue,
               description: substance.description,
               measurement_type: getResolvedMeasurementType(substance),
-              unit_quantity: isUnitMeasurementType(getResolvedMeasurementType(substance))
-                ? substance.unit_quantity
-                : null,
+              unit_quantity: substance.unit_quantity,
               weight: substance.weight,
               weight_net: substance.weight_net, // 🆕
               reception: receptionResponse.data,
@@ -1151,9 +1145,7 @@ export default {
               nue: substance.nue,
               description: substance.description,
               measurement_type: getResolvedMeasurementType(substance),
-              unit_quantity: isUnitMeasurementType(getResolvedMeasurementType(substance))
-                ? substance.unit_quantity
-                : null,
+              unit_quantity: substance.unit_quantity,
               weight: substance.weight,
               weight_net: substance.weight_net, // 🆕
               reception: receptionResponse.data,
@@ -1195,7 +1187,7 @@ export default {
           }))
 
           //Generar el PDF automáticamente
-          generarActaPDF(form, receptionResponse)
+          await generarActaPDF(form)
         }
 
         // ✅ EMITIR EVENTO PARA ACTUALIZAR LA TABLA

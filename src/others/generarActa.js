@@ -1,7 +1,23 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import usersService from '@/services/usersService'
 
-export const generarActaPDF = (form, receptionResponse) => {
+export const generarActaPDF = async (form) => {
+  const userDestinationId = form.user_destination?.id
+
+  if (!userDestinationId) {
+    throw new Error('No se encontró el ID del usuario que recibe')
+  }
+
+  const { data: userDestination } = await usersService.getById(userDestinationId)
+  const userDestinationName =
+    userDestination.username ||
+    [userDestination.firstName, userDestination.firstLastName, userDestination.secondLastName]
+      .filter(Boolean)
+      .join(' ') ||
+    '—'
+  const userDestinationRut = userDestination.rut || '—'
+
   const doc = new jsPDF('p', 'mm', 'a4')
 
   // === Encabezado ===
@@ -56,7 +72,7 @@ export const generarActaPDF = (form, receptionResponse) => {
   ]
   console.log(form.substances)
 
-  const data = form.substances.map((s, i) => ({
+  const data = form.substances.map((s) => ({
     n: s.nsubstance || '—',
     presunto: s.substanceTypeName || '—',
     nue: s.nue || '—',
@@ -101,11 +117,11 @@ export const generarActaPDF = (form, receptionResponse) => {
   y += 6
   doc.setFont('helvetica', 'normal')
   doc.text(`${form.police.firstName} ${form.police.firstLastName}`, 20, y)
-  doc.text(`${form.user_destination.username || ' '}`, 130, y)
+  doc.text(userDestinationName, 130, y)
 
   y += 5
   doc.text(`RUT: ${form.police.rut}`, 20, y)
-  doc.text(`RUT: ${form.user_destination.rut || ' '}`, 130, y)
+  doc.text(`RUT: ${userDestinationRut}`, 130, y)
 
   y += 5
   doc.text(`Grado: ${form.police.grade.name || '-'}`, 20, y)
