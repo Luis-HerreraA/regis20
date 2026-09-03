@@ -52,7 +52,7 @@ export const generarActaPDF = async (form) => {
   doc.text(
     `Ord N° ${form.of_number} con fecha ${new Date(form.of_number_date).toLocaleDateString(
       'es-CL',
-    )} - ${form.police.institution.name.toUpperCase()} - ${
+    )} - ${form.police.institutionType.name.toUpperCase()} ${form.police.institution.name.toUpperCase()} - ${
       form.police.institutionType.commune.name
     }`,
     15,
@@ -128,8 +128,9 @@ export const generarActaPDF = async (form) => {
   doc.text('Servicio de Salud Magallanes', 130, y)
 
   y += 5
-  doc.text(`Unidad: ${form.police.institution.name || '-'}`, 20, y)
-  doc.text(`Comuna: ${form.police.institutionType.commune.name || '-'}`, 20, y + 5)
+  doc.text(`Tipo de Institución: ${form.police.institutionType.name || '-'}`, 20, y)
+  doc.text(`Unidad: ${form.police.institution.name || '-'}`, 20, y + 5)
+  doc.text(`Comuna: ${form.police.institutionType.commune.name || '-'}`, 20, y + 10)
 
   // === Guardar archivo ===
   const filename = `Acta_Recepcion_${form.number}.pdf`

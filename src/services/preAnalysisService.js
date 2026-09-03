@@ -1,9 +1,21 @@
 import axiosClient from './axiosClient'
 
+const excludePreAnalysisWithoutReception = (response) => {
+  if (Array.isArray(response.data)) {
+    response.data = response.data.filter((preAnalysis) => preAnalysis?.reception != null)
+  } else if (Array.isArray(response.data?.content)) {
+    response.data.content = response.data.content.filter(
+      (preAnalysis) => preAnalysis?.reception != null,
+    )
+  }
+
+  return response
+}
+
 export default {
   // ✅ Obtener todos los usuarios
   getAll() {
-    return axiosClient.get('/api/v1/pre_analysis')
+    return axiosClient.get('/api/v1/pre_analysis').then(excludePreAnalysisWithoutReception)
   },
 
   // ✅ Obtener usuario por ID

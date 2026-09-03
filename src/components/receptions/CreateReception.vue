@@ -184,7 +184,7 @@
           <!-- ⚖️ Segunda fila: pesos y unidad -->
           <div class="grid formgrid p-fluid align-items-end">
             <div class="field col-12 md:col-3">
-              <label>Tipo de Medcion</label>
+              <label>Tipo de Medición</label>
               <Dropdown
                 v-model="newSubstance.measurement_type"
                 :options="unityOptions"
@@ -196,7 +196,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-2" v-show="!isUnitMeasurement">
+            <div class="field col-12 md:col-2">
               <label>Peso Bruto</label>
               <InputNumber
                 v-model="newSubstance.weight"
@@ -207,7 +207,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-2" v-show="!isUnitMeasurement">
+            <div class="field col-12 md:col-2">
               <label>Peso Neto</label>
               <InputNumber
                 v-model="newSubstance.weight_net"
@@ -227,7 +227,7 @@
               />
             </div>
 
-            <div class="field col-12 md:col-2">
+            <div v-show="isUnitMeasurement" class="field col-12 md:col-2">
               <label>Cantidad</label>
               <InputNumber
                 v-model="newSubstance.unit_quantity"
@@ -283,22 +283,26 @@
             <Column field="weight" header="Peso (gr)">
               <template #body="slotProps">
                 {{
-                  isUnitMeasurementType(slotProps.data.measurement_type)
+                  slotProps.data.weight === null ||
+                  slotProps.data.weight === undefined ||
+                  slotProps.data.weight === ''
                     ? '-'
-                    : Number(slotProps.data.weight || 0).toFixed(2)
+                    : Number(slotProps.data.weight).toFixed(2)
                 }}
               </template>
             </Column>
             <Column field="weight_net" header="Peso Neto (gr)">
               <template #body="slotProps">
                 {{
-                  isUnitMeasurementType(slotProps.data.measurement_type)
+                  slotProps.data.weight_net === null ||
+                  slotProps.data.weight_net === undefined ||
+                  slotProps.data.weight_net === ''
                     ? '-'
-                    : Number(slotProps.data.weight_net || 0).toFixed(2)
+                    : Number(slotProps.data.weight_net).toFixed(2)
                 }}
               </template>
             </Column>
-            <Column field="measurement_type" header="Tipo de Medcion"></Column>
+            <Column field="measurement_type" header="Tipo de Medición"></Column>
             <Column field="unit_quantity" header="Cantidad">
               <template #body="slotProps">
                 {{
@@ -479,7 +483,7 @@ export default {
       //  { label: 'Mililitros', value: 'MILILITROS' },
       //  { label: 'Litros', value: 'LITROS' },
       //  { label: 'Paquete', value: 'PAQUETE' },
-      //  { label: 'Unidad', value: 'UNIDAD' },
+      { label: 'Unidades', value: 'UNIDADES' },
       //  { label: 'Otros', value: 'OTROS' },
     ]
 
@@ -531,11 +535,9 @@ export default {
         return false
       }
 
-      if (isUnitMeasurement.value) {
-        return Number(newSubstance.unit_quantity || 0) > 0
-      }
+      if (Number(newSubstance.weight || 0) <= 0) return false
 
-      return Number(newSubstance.weight || 0) > 0
+      return !isUnitMeasurement.value || Number(newSubstance.unit_quantity || 0) > 0
     })
 
     const validateSubstanceData = (substance, index = null) => {
@@ -585,30 +587,30 @@ export default {
           })
           return false
         }
-      } else {
-        if (Number(substance.weight || 0) <= 0) {
-          toast.add({
-            severity: 'warn',
-            summary: 'Peso inválido',
-            detail: `El peso bruto debe ser mayor a 0 en ${rowLabel}.`,
-            life: 3500,
-          })
-          return false
-        }
+      }
 
-        if (
-          substance.weight_net !== null &&
-          substance.weight_net !== undefined &&
-          Number(substance.weight_net) > Number(substance.weight)
-        ) {
-          toast.add({
-            severity: 'warn',
-            summary: 'Pesos inconsistentes',
-            detail: `El peso neto no puede ser mayor al peso bruto en ${rowLabel}.`,
-            life: 3500,
-          })
-          return false
-        }
+      if (Number(substance.weight || 0) <= 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Peso inválido',
+          detail: `El peso bruto debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (
+        substance.weight_net !== null &&
+        substance.weight_net !== undefined &&
+        Number(substance.weight_net) > Number(substance.weight)
+      ) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Pesos inconsistentes',
+          detail: `El peso neto no puede ser mayor al peso bruto en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
       }
 
       return true
@@ -695,9 +697,8 @@ export default {
     watch(
       () => [newSubstance.measurement_type, newSubstance.other_unity],
       () => {
-        if (isUnitMeasurement.value) {
-          newSubstance.weight = null
-          newSubstance.weight_net = null
+        if (!isUnitMeasurement.value) {
+          newSubstance.unit_quantity = null
         }
       },
     )
@@ -859,9 +860,8 @@ export default {
       substanceToAdd.other_unity = ''
       substanceToAdd.description = String(substanceToAdd.description || '').trim() || null
 
-      if (isUnitMeasurementType(getResolvedMeasurementType(substanceToAdd))) {
-        substanceToAdd.weight = null
-        substanceToAdd.weight_net = null
+      if (!isUnitMeasurementType(getResolvedMeasurementType(substanceToAdd))) {
+        substanceToAdd.unit_quantity = null
       }
 
       form.substances.push(substanceToAdd)

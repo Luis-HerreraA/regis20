@@ -25,7 +25,7 @@ export const generarActaPDF = (form, substances) => {
   const policeGrade = form.police?.grade?.name || '—'
   const policeInstitution = form.police?.institutionType?.institution?.name || '—'
   const policeCommune = form.police?.institutionType?.commune?.name || '—'
-
+  const policeInstitutionType = form.police?.institutionType?.name || '—'
   // === Encabezado ===
   const logo = new Image()
   logo.src = '/ssm/logo-ssm.png'
@@ -49,7 +49,7 @@ export const generarActaPDF = (form, substances) => {
     45,
   )
   doc.text(
-    `Ord N° ${form.of_number} con fecha ${fecha2} - ${(form.police?.institutionType?.institution?.name || '').toUpperCase()} - ${
+    `Ord N° ${form.of_number} con fecha ${fecha2} - ${(form.police?.institutionType?.name || '').toUpperCase()} ${(form.police?.institutionType?.institution?.name || '').toUpperCase()} - ${
       form.police?.institutionType?.commune?.name || '—'
     }`,
     15,
@@ -124,8 +124,9 @@ export const generarActaPDF = (form, substances) => {
   doc.text('Servicio de Salud Magallanes', 130, y)
 
   y += 5
-  doc.text(`Unidad: ${policeInstitution}`, 20, y)
-  doc.text(`Comuna: ${policeCommune}`, 20, y + 5)
+  doc.text(`Tipo de Institución: ${policeInstitutionType}`, 20, y)
+  doc.text(`Unidad: ${policeInstitution}`, 20, y + 5)
+  doc.text(`Comuna: ${policeCommune}`, 20, y + 10)
 
   // === Guardar archivo ===
   const filename = `Acta_Recepcion_${form.number}.pdf`

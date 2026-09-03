@@ -245,12 +245,14 @@
             />
           </div>
 
-          <!-- Unidad -->
+          <!-- Cantidad de unidades -->
           <div class="field col-12 md:col-2">
-            <label>Unidad</label>
-            <InputText
-              v-model="editingSubstance.unity"
-              placeholder="Ej: gramos, ml..."
+            <label>Cantidad de unidades</label>
+            <InputNumber
+              v-model="editingSubstance.unit_quantity"
+              :min="0"
+              mode="decimal"
+              :maxFractionDigits="2"
               class="w-full"
             />
           </div>
@@ -357,10 +359,10 @@
             </template>
           </Column>
 
-          <!-- Unidad -->
-          <Column field="unity" header="Unidad">
+          <!-- Cantidad de unidades -->
+          <Column field="unit_quantity" header="Cantidad">
             <template #body="slotProps">
-              {{ slotProps.data.unity || '—' }}
+              {{ slotProps.data.unit_quantity ?? '—' }}
             </template>
           </Column>
 
