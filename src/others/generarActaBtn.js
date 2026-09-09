@@ -1,7 +1,22 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-export const generarActaPDF = (form, substances) => {
+const addDraftWatermark = (doc) => {
+  const totalPages = doc.getNumberOfPages()
+
+  for (let page = 1; page <= totalPages; page += 1) {
+    doc.setPage(page)
+    doc.saveGraphicsState()
+    doc.setGState(new doc.GState({ opacity: 0.14 }))
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(80)
+    doc.setTextColor(180, 0, 0)
+    doc.text('BORRADOR', 125, 160, { align: 'center', angle: 45 })
+    doc.restoreGraphicsState()
+  }
+}
+
+export const generarActaPDF = (form, substances, draftPreviewWindow = null) => {
   const [day, month, year] = form.date_reception.split('-')
   const [ofday, ofmonth, ofyear] = form.of_number_date.split('-')
 
@@ -57,18 +72,24 @@ export const generarActaPDF = (form, substances) => {
   )
 
   // === Tabla de Sustancias ===
+  const receptionSubstances = substances || []
+  const hasUnitQuantity = receptionSubstances.some((s) => {
+    const quantity = s.unit_quantity ?? s.unity_quantity
+    return quantity !== null && quantity !== undefined && quantity !== ''
+  })
+
   const columns = [
     { header: 'Muestra Nº', dataKey: 'n' },
     { header: 'Presunto', dataKey: 'presunto' },
     { header: 'NUE', dataKey: 'nue' },
     { header: 'Unidad de Medición', dataKey: 'measurement_type' },
-    { header: 'Cantidad (Unidad)', dataKey: 'cantidad' },
+    ...(hasUnitQuantity ? [{ header: 'Cantidad (Unidad)', dataKey: 'cantidad' }] : []),
     { header: 'Peso Bruto', dataKey: 'peso' },
     { header: 'Peso Neto', dataKey: 'peso_neto' },
     { header: 'Descripción muestra', dataKey: 'descripcion' },
   ]
 
-  const data = (substances || []).map((s) => ({
+  const data = receptionSubstances.map((s) => ({
     n: s.nsubstance || '—',
     presunto: s.substanceType?.name || s.substanceTypeName || '—',
     nue: s.nue || '—',
@@ -90,7 +111,7 @@ export const generarActaPDF = (form, substances) => {
 
   autoTable(doc, {
     head: [columns.map((c) => c.header)],
-    body: data.map((d) => Object.values(d)),
+    body: data.map((d) => columns.map((column) => d[column.dataKey])),
     startY: 60,
     styles: {
       fontSize: 8,
@@ -120,15 +141,26 @@ export const generarActaPDF = (form, substances) => {
   doc.text(`RUT: ${form.user_destination.rut || ' '}`, 130, y)
 
   y += 5
-  doc.text(`Grado: ${policeGrade}`, 20, y)
+  doc.text(`${policeGrade}`, 20, y)
   doc.text('Servicio de Salud Magallanes', 130, y)
 
   y += 5
-  doc.text(`Tipo de Institución: ${policeInstitutionType}`, 20, y)
-  doc.text(`Unidad: ${policeInstitution}`, 20, y + 5)
-  doc.text(`Comuna: ${policeCommune}`, 20, y + 10)
+  doc.text(`${policeInstitutionType}`, 20, y)
+  doc.text(`${policeInstitution}`, 20, y + 5)
+  doc.text(`${policeCommune}`, 20, y + 10)
 
-  // === Guardar archivo ===
+  if (form.state === 'BORRADOR') addDraftWatermark(doc)
+
+  if (form.state === 'BORRADOR') {
+    const previewWindow = draftPreviewWindow || window.open('', '_blank')
+
+    if (!previewWindow) throw new Error('El navegador bloqueó la pestaña de vista previa')
+
+    previewWindow.location.href = doc.output('bloburl')
+    return
+  }
+
+  // === Guardar archivo definitivo ===
   const filename = `Acta_Recepcion_${form.number}.pdf`
   doc.save(filename, { compress: true })
 }

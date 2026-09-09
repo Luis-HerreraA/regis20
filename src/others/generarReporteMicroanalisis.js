@@ -1,15 +1,28 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { addDraftWatermark, openPdfPreview } from '@/others/pdfPreview.js'
 
 /**
  * Genera el reporte de microanálisis (microscopía) en PDF
  * @param {Object} analysis - Datos del análisis completo con información de micro
  */
-export const generarReporteMicroanalisisPDF = (analysis, micro) => {
+export const generarReporteMicroanalisisPDF = (
+  analysis,
+  micro,
+  { preview = false, draft = false, previewWindow = null } = {},
+) => {
   console.log(analysis)
   console.log(micro)
-  if (!analysis.micro) {
+  if (!analysis.micro && !draft) {
     console.error('No hay datos de microanálisis para generar el reporte')
+    return
+  }
+
+  const microRecord =
+    micro?.data?.content?.[0] || micro?.data?.[0] || micro?.content?.[0] || micro?.[0] || micro
+
+  if (!microRecord) {
+    console.error('No hay detalle de microanálisis para generar el reporte')
     return
   }
 
@@ -50,16 +63,13 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
 
   const actaNumber = analysis.preAnalysis?.reception?.number || 'N/A'
   const sampleNumber = analysis.preAnalysis?.substance?.nue || 'N/A'
-  const receptionDate = analysis.preAnalysis?.reception?.date_reception
-    ? new Date(analysis.preAnalysis.reception.date_reception).toLocaleDateString('es-CL')
-    : 'N/A'
 
   const datosGenerales = [
     ['Laboratorio:', 'Servicio de Salud Magallanes'],
-    ['Analista:', micro.data[0].user?.username || 'N/A'],
-    ['Fecha:', micro.data[0].date || 'N/A'],
+    ['Analista:', microRecord.user?.username || 'N/A'],
+    ['Fecha:', microRecord.date || 'N/A'],
     ['Número de Acta:', actaNumber],
-    ['Número de Muestra:', micro.data[0].analysis.preAnalysis.substance.nsubstance || 'N/A'],
+    ['Número de Muestra:', microRecord.analysis?.preAnalysis?.substance?.nsubstance || 'N/A'],
   ]
 
   autoTable(doc, {
@@ -88,17 +98,15 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
 
-  const microData = analysis.micro
-
   doc.text(
-    `- Tipo de muestra: Sustancia vegetal ${micro.data[0].analysis.gradeFrac || 'N/A'}`,
+    `- Tipo de muestra: Sustancia vegetal ${microRecord.analysis?.gradeFrac || 'N/A'}`,
     margin,
     yPos,
   )
   yPos += 5
   doc.text(`- Tipo de observación: Directa en seco (sin medio de montaje)`, margin, yPos)
   yPos += 5
-  doc.text(`- Aumento utilizado: ${micro.data[0].aumento || 'N/A'}`, margin, yPos)
+  doc.text(`- Aumento utilizado: ${microRecord.aumento || 'N/A'}`, margin, yPos)
 
   yPos += 10
 
@@ -111,10 +119,10 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
 
   const estructurasData = [
     ['Estructura', 'Observada'],
-    ['Tricomas glandulares', micro.data[0].ttgland || 'N/A'],
-    ['Tricomas no glandulares', micro.data[0].ttnogland || 'N/A'],
-    ['Estomas', micro.data[0].stomas || 'N/A'],
-    ['Células epidérmicas', micro.data[0].celepi || 'N/A'],
+    ['Tricomas glandulares', microRecord.ttgland || 'N/A'],
+    ['Tricomas no glandulares', microRecord.ttnogland || 'N/A'],
+    ['Estomas', microRecord.stomas || 'N/A'],
+    ['Células epidérmicas', microRecord.celepi || 'N/A'],
     //  ['Células con resina', micro.data[0].celresi || 'N/A'],
     //  ['Cristales (oxalato de calcio)', micro.data[0].cris || 'N/A'],
   ]
@@ -158,7 +166,7 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
 
-  const conclusion = micro.data[0].conclution || 'Sin conclusión registrada'
+  const conclusion = microRecord.conclution || 'Sin conclusión registrada'
   const conclusionLines = doc.splitTextToSize(conclusion, pageWidth - margin * 2)
   doc.text(conclusionLines, pageWidth / 2, yPos, { align: 'center' })
 
@@ -180,7 +188,7 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
 
   yPos += 10
   doc.setFont('helvetica', 'bold')
-  doc.text(`Fecha: ${micro.data[0].date}`, margin, yPos)
+  doc.text(`Fecha: ${microRecord.date || 'N/A'}`, margin, yPos)
 
   // PIE DE PÁGINA
   yPos = pageHeight - 10
@@ -193,5 +201,13 @@ export const generarReporteMicroanalisisPDF = (analysis, micro) => {
 
   // Generar y descargar PDF con compresión
   const fileName = `Informe_Microscopia_Acta_${actaNumber}_Muestra_${sampleNumber}_${Date.now()}.pdf`
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc, previewWindow)
+    return
+  }
+
   doc.save(fileName, { compress: true })
 }

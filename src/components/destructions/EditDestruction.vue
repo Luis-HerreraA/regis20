@@ -117,6 +117,25 @@
       <template #footer>
         <Button label="Cancelar" icon="pi pi-times" @click="closeDialog" text />
         <Button
+          label="Previsualizar"
+          icon="pi pi-eye"
+          severity="info"
+          outlined
+          @click="previewDestruction('incineration')"
+          :loading="isPreviewing"
+          :disabled="isLoading || isSaving"
+        />
+        <Button
+          v-if="Number(form.methodDestruction?.id) === 1"
+          label="Previsualizar incineración"
+          icon="pi pi-eye"
+          severity="warning"
+          outlined
+          @click="previewDestruction"
+          :loading="isPreviewing"
+          :disabled="isLoading || isSaving"
+        />
+        <Button
           label="Guardar"
           icon="pi pi-check"
           @click="updateDestruction"
@@ -134,6 +153,8 @@ import { useToast } from 'primevue/usetoast'
 import destructionsService from '@/services/destructionsHeaderService.js'
 import destructionDetailsService from '@/services/destructionDetailsService.js'
 import methodsDestructionsService from '@/services/methodsDestructionsService.js'
+import { generarActaDestruccionMetodo1PDF } from '@/others/generarActaDestruccionMetodo1.js'
+import { generarActaDestruccionCompletadoPDF } from '@/others/generarActaDestruccionCompletado.js'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
@@ -172,6 +193,7 @@ export default {
     const visible = ref(false)
     const isLoading = ref(false)
     const isSaving = ref(false)
+    const isPreviewing = ref(false)
     const methodsDestructions = ref([])
     const destructionDetails = ref([])
 
@@ -283,6 +305,81 @@ export default {
       return Object.keys(errors.value).length === 0
     }
 
+    const previewDestruction = async (documentType = 'destruction') => {
+      if (!form.value.methodDestruction) {
+        errors.value = {
+          ...errors.value,
+          methodDestruction: 'Debe seleccionar un método para previsualizar el acta',
+        }
+        toast.add({
+          severity: 'warn',
+          summary: 'Método requerido',
+          detail: 'Seleccione el método de destrucción para determinar el formato del acta',
+          life: 3000,
+        })
+        return
+      }
+
+      errors.value = { ...errors.value, methodDestruction: undefined }
+      const previewWindow = window.open('', '_blank')
+
+      if (!previewWindow) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Ventana bloqueada',
+          detail: 'Permita las ventanas emergentes para previsualizar el acta',
+          life: 4000,
+        })
+        return
+      }
+
+      isPreviewing.value = true
+      try {
+        const previewHeader = {
+          ...props.destruction,
+          act_number: form.value.act_number || null,
+          date_destruction: form.value.date_destruction || null,
+          observation: form.value.observation || null,
+          state: 'BORRADOR',
+          weight: form.value.weight,
+          methodDestruction: form.value.methodDestruction,
+        }
+        const previewOptions = { preview: true, draft: true, previewWindow }
+
+        if (documentType === 'incineration') {
+          await generarActaDestruccionMetodo1PDF(previewHeader, previewOptions)
+        } else {
+          await generarActaDestruccionCompletadoPDF(
+            previewHeader,
+            destructionDetails.value,
+            previewOptions,
+          )
+        }
+
+        toast.add({
+          severity: 'success',
+          summary: 'Vista previa generada',
+          detail:
+            documentType === 'incineration'
+              ? 'El borrador del acta de incineración se abrió en una pestaña nueva'
+              : 'El borrador del acta de destrucción se abrió en una pestaña nueva',
+          life: 3000,
+        })
+      } catch (error) {
+        if (!previewWindow.closed) previewWindow.close()
+
+        console.error('❌ Error previsualizando acta de destrucción:', error)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudo previsualizar el acta de destrucción',
+          life: 3000,
+        })
+      } finally {
+        isPreviewing.value = false
+      }
+    }
+
     const updateDestruction = async () => {
       if (!validateForm()) {
         toast.add({
@@ -347,6 +444,7 @@ export default {
       visible,
       isLoading,
       isSaving,
+      isPreviewing,
       form,
       errors,
       methodsDestructions,
@@ -354,6 +452,7 @@ export default {
       stateOptions,
       openDialog,
       closeDialog,
+      previewDestruction,
       updateDestruction,
     }
   },

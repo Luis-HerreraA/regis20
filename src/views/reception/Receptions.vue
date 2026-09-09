@@ -136,9 +136,21 @@
                       <div class="flex align-items-center gap-2">
                         <ViewHistoryReception :reception="slotProps.data" />
                         <Button
-                          icon="pi pi-file-pdf"
-                          class="p-button-text p-button-help"
-                          v-tooltip="'Generar PDF'"
+                          :icon="
+                            slotProps.data.state === 'BORRADOR'
+                              ? 'pi pi-eye'
+                              : 'pi pi-file-pdf'
+                          "
+                          :class="
+                            slotProps.data.state === 'BORRADOR'
+                              ? 'p-button-text p-button-warning draft-pdf-button'
+                              : 'p-button-text p-button-help'
+                          "
+                          v-tooltip="
+                            slotProps.data.state === 'BORRADOR'
+                              ? 'Ver acta borrador con marca de agua'
+                              : 'Generar PDF'
+                          "
                           @click="generatePDF(slotProps.data)"
                         />
                         <Button
@@ -295,6 +307,19 @@ export default {
     }
 
     const generatePDF = async (reception) => {
+      const isDraft = reception.state === 'BORRADOR'
+      const draftPreviewWindow = isDraft ? window.open('', '_blank') : null
+
+      if (isDraft && !draftPreviewWindow) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Ventana bloqueada',
+          detail: 'Permite las ventanas emergentes para visualizar el acta borrador',
+          life: 4000,
+        })
+        return
+      }
+
       try {
         toast.add({
           severity: 'info',
@@ -312,15 +337,19 @@ export default {
         const substances = substancesData.filter((s) => s.reception?.id === reception.id)
 
         // 3️⃣ Llamar a la función del PDF
-        generarActaPDF(receptionData, substances)
+        generarActaPDF({ ...receptionData, state: reception.state }, substances, draftPreviewWindow)
 
         toast.add({
           severity: 'success',
-          summary: 'PDF generado',
-          detail: `Acta de recepción #${reception.number} descargada`,
+          summary: isDraft ? 'Vista previa generada' : 'PDF generado',
+          detail: isDraft
+            ? `Acta borrador #${reception.number} abierta en una pestaña nueva`
+            : `Acta de recepción #${reception.number} descargada`,
           life: 3000,
         })
       } catch (error) {
+        if (draftPreviewWindow && !draftPreviewWindow.closed) draftPreviewWindow.close()
+
         console.error('❌ Error generando PDF:', error)
         toast.add({
           severity: 'error',
@@ -442,6 +471,11 @@ export default {
 
 .borrador-row {
   background-color: #fff6b8 !important;
+}
+
+:deep(.draft-pdf-button) {
+  border: 1px solid var(--yellow-500);
+  border-radius: 50%;
 }
 
 :deep(.borrador-row) > td,

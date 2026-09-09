@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { addDraftWatermark, openPdfPreview, parsePdfDate } from '@/others/pdfPreview.js'
 
 /**
  * Genera el acta de destrucción para estado COMPLETADO
@@ -9,6 +10,7 @@ import autoTable from 'jspdf-autotable'
 export const generarActaDestruccionCompletadoPDF = async (
   destructionHeader,
   destructionDetails,
+  { preview = false, draft = false, previewWindow = null } = {},
 ) => {
   if (!destructionHeader) {
     console.error('No hay datos de destrucción para generar el documento')
@@ -42,12 +44,10 @@ export const generarActaDestruccionCompletadoPDF = async (
   // Fecha y lugar
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
-  const destructionDate = destructionHeader.date_destruction || new Date()
-  const dateObj = new Date(destructionDate)
-  const day = dateObj.getDate()
-  const month = dateObj.toLocaleDateString('es-ES', { month: 'long' })
-  const year = dateObj.getFullYear()
-  const fechaTexto = `En Punta Arenas, a ${day} de ${month} del ${year}.`
+  const dateObj = parsePdfDate(destructionHeader.date_destruction)
+  const fechaTexto = dateObj
+    ? `En Punta Arenas, a ${dateObj.getDate()} de ${dateObj.toLocaleDateString('es-CL', { month: 'long' })} del ${dateObj.getFullYear()}.`
+    : 'En Punta Arenas, a (día) de (mes) del (año).'
   doc.text(fechaTexto, margin, yPos)
 
   yPos += 12
@@ -190,6 +190,13 @@ export const generarActaDestruccionCompletadoPDF = async (
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.text('ASISTENCIA MEDIOS DE COMUNICACIÓN: (SI/NO)', margin, yPos)
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc, previewWindow)
+    return
+  }
 
   // Guardar PDF
   const fileName = `Acta_Destruccion_${destructionHeader.act_number}_${Date.now()}.pdf`

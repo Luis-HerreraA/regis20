@@ -1,13 +1,17 @@
 import jsPDF from 'jspdf'
 import reservedsService from '@/services/reservedsService.js'
-import Login from '@/views/Login.vue'
+import { addDraftWatermark, openPdfPreview } from '@/others/pdfPreview.js'
 
 /**
  * Genera un documento de reservado para un análisis con números de Fiscalía Local e ISP
  * @param {Object} analysis - Análisis con información completa
  * @param {Array} reserveds - Array de números reservados (fiscal e ISP)
  */
-export const generarReservadoPDF = async (analysis, reserveds) => {
+export const generarReservadoPDF = async (
+  analysis,
+  reserveds,
+  { preview = false, draft = false, previewWindow = null, analyses: previewAnalyses } = {},
+) => {
   console.log(analysis)
 
   if (!analysis) {
@@ -21,9 +25,9 @@ export const generarReservadoPDF = async (analysis, reserveds) => {
   }
 
   // Cargar análisis asociados al número reservado ISP
-  const reservedISP = reserveds.find((r) => r.isp === 'true')
-  let analyses = []
-  if (reservedISP) {
+  const reservedISP = reserveds.find((r) => r.isp === true || r.isp === 'true')
+  let analyses = previewAnalyses || []
+  if (!previewAnalyses && reservedISP) {
     try {
       const { data } = await reservedsService.getByNumberPaginated(reservedISP.number)
       analyses = data.content || data || []
@@ -55,7 +59,7 @@ export const generarReservadoPDF = async (analysis, reserveds) => {
   const reservedNumber = reservedISP.number
 
   doc.text('RESERVADO.:', pageWidth - margin - 60, 35)
-  doc.text(reservedNumber, pageWidth - margin - 15, 35, { align: 'right' })
+  doc.text(String(reservedNumber), pageWidth - margin - 15, 35, { align: 'right' })
   doc.text('.-', pageWidth - margin - 5, 35, { align: 'right' })
 
   let yPos = 45
@@ -95,21 +99,6 @@ export const generarReservadoPDF = async (analysis, reserveds) => {
   doc.text('Informa resultado de análisis', rightBoxX + 10, yPos)
 
   yPos += 10
-  const today = new Date()
-  const months = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ]
   const dateText = `DÍA-MES-AÑO`
   doc.text(`Punta Arenas,`, pageWidth - margin - 60, yPos)
   doc.text(dateText, pageWidth - margin - 5, yPos, { align: 'right' })
@@ -233,6 +222,14 @@ export const generarReservadoPDF = async (analysis, reserveds) => {
 
   // Generar y descargar PDF
   const fileName = `Reservado_ISP_Acta_${actaNumber}_Analisis_${analysis.id}_${Date.now()}.pdf`
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc, previewWindow)
+    return
+  }
+
   doc.save(fileName, { compress: true })
 }
 
@@ -241,7 +238,11 @@ export const generarReservadoPDF = async (analysis, reserveds) => {
  * @param {Object} analysis - Análisis con información completa
  * @param {Array} reserveds - Array de números reservados (fiscal e ISP)
  */
-export const generarReservadoFiscaliaPDF = async (analysis, reserveds) => {
+export const generarReservadoFiscaliaPDF = async (
+  analysis,
+  reserveds,
+  { preview = false, draft = false, previewWindow = null, analyses: previewAnalyses } = {},
+) => {
   if (!analysis) {
     console.error('No hay análisis para generar el documento')
     return
@@ -253,9 +254,9 @@ export const generarReservadoFiscaliaPDF = async (analysis, reserveds) => {
   }
 
   // Cargar análisis asociados al número reservado fiscal
-  const reservedFiscal = reserveds.find((r) => r.fiscal)
-  let analyses = []
-  if (reservedFiscal) {
+  const reservedFiscal = reserveds.find((r) => r.fiscal === true || r.fiscal === 'true')
+  let analyses = previewAnalyses || []
+  if (!previewAnalyses && reservedFiscal) {
     try {
       const { data } = await reservedsService.getByNumberPaginated(reservedFiscal.number)
       analyses = data.content || data || []
@@ -282,12 +283,12 @@ export const generarReservadoFiscaliaPDF = async (analysis, reserveds) => {
 
   // ENCABEZADO - RESERVADO
   doc.setFontSize(11)
-  const reservedISPForFiscalia = reserveds.find((r) => r.isp)
+  const reservedISPForFiscalia = reserveds.find((r) => r.isp === true || r.isp === 'true')
 
   const reservedNumber = reservedFiscal ? reservedFiscal.number : 'X'
 
   doc.text('RESERVADO.:', pageWidth - margin - 60, 35)
-  doc.text(reservedNumber, pageWidth - margin - 15, 35, { align: 'right' })
+  doc.text(String(reservedNumber), pageWidth - margin - 15, 35, { align: 'right' })
   doc.text('.-', pageWidth - margin - 5, 35, { align: 'right' })
 
   let yPos = 45
@@ -433,5 +434,13 @@ export const generarReservadoFiscaliaPDF = async (analysis, reserveds) => {
 
   // Generar y descargar PDF
   const fileName = `Reservado_Fiscalia_Acta_${actaNumber}_Analisis_${analysis.id}_${Date.now()}.pdf`
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc, previewWindow)
+    return
+  }
+
   doc.save(fileName, { compress: true })
 }

@@ -2,7 +2,28 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import usersService from '@/services/usersService'
 
+const addDraftWatermark = (doc) => {
+  const totalPages = doc.getNumberOfPages()
+
+  for (let page = 1; page <= totalPages; page += 1) {
+    doc.setPage(page)
+    doc.saveGraphicsState()
+    doc.setGState(new doc.GState({ opacity: 0.14 }))
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(54)
+    doc.setTextColor(180, 0, 0)
+    doc.text('BORRADOR', 105, 148, { align: 'center', angle: 45 })
+    doc.restoreGraphicsState()
+  }
+}
+
 export const generarActaPDF = async (form) => {
+  const draftPreviewWindow = form.state === 'BORRADOR' ? window.open('', '_blank') : null
+
+  if (form.state === 'BORRADOR' && !draftPreviewWindow) {
+    throw new Error('El navegador bloqueó la pestaña de vista previa')
+  }
+
   const userDestinationId = form.user_destination?.id
 
   if (!userDestinationId) {
@@ -60,19 +81,25 @@ export const generarActaPDF = async (form) => {
   )
 
   // === Tabla de Sustancias ===
+  const substances = form.substances || []
+  const hasUnitQuantity = substances.some((s) => {
+    const quantity = s.unit_quantity ?? s.unity_quantity
+    return quantity !== null && quantity !== undefined && quantity !== ''
+  })
+
   const columns = [
     { header: 'Muestra Nº', dataKey: 'n' },
     { header: 'Presunto', dataKey: 'presunto' },
     { header: 'NUE', dataKey: 'nue' },
     { header: 'Unidad de Medición', dataKey: 'measurement_type' },
-    { header: 'Cantidad (Unidad)', dataKey: 'cantidad' },
+    ...(hasUnitQuantity ? [{ header: 'Cantidad (Unidad)', dataKey: 'cantidad' }] : []),
     { header: 'Peso Bruto', dataKey: 'peso' },
     { header: 'Peso Neto', dataKey: 'peso_neto' },
     { header: 'Descripción muestra', dataKey: 'descripcion' },
   ]
-  console.log(form.substances)
+  console.log(substances)
 
-  const data = form.substances.map((s) => ({
+  const data = substances.map((s) => ({
     n: s.nsubstance || '—',
     presunto: s.substanceTypeName || '—',
     nue: s.nue || '—',
@@ -94,7 +121,7 @@ export const generarActaPDF = async (form) => {
 
   autoTable(doc, {
     head: [columns.map((c) => c.header)],
-    body: data.map((d) => Object.values(d)),
+    body: data.map((d) => columns.map((column) => d[column.dataKey])),
     startY: 60,
     styles: {
       fontSize: 8,
@@ -124,15 +151,22 @@ export const generarActaPDF = async (form) => {
   doc.text(`RUT: ${userDestinationRut}`, 130, y)
 
   y += 5
-  doc.text(`Grado: ${form.police.grade.name || '-'}`, 20, y)
+  doc.text(`${form.police.grade.name || '-'}`, 20, y)
   doc.text('Servicio de Salud Magallanes', 130, y)
 
   y += 5
-  doc.text(`Tipo de Institución: ${form.police.institutionType.name || '-'}`, 20, y)
-  doc.text(`Unidad: ${form.police.institution.name || '-'}`, 20, y + 5)
-  doc.text(`Comuna: ${form.police.institutionType.commune.name || '-'}`, 20, y + 10)
+  doc.text(`${form.police.institutionType.name || '-'}`, 20, y)
+  doc.text(`${form.police.institution.name || '-'}`, 20, y + 5)
+  doc.text(`${form.police.institutionType.commune.name || '-'}`, 20, y + 10)
 
-  // === Guardar archivo ===
+  if (form.state === 'BORRADOR') addDraftWatermark(doc)
+
+  if (form.state === 'BORRADOR') {
+    draftPreviewWindow.location.href = doc.output('bloburl')
+    return
+  }
+
+  // === Guardar archivo definitivo ===
   const filename = `Acta_Recepcion_${form.number}.pdf`
   doc.save(filename, { compress: true })
 }

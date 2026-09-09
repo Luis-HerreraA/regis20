@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
+import { addDraftWatermark, openPdfPreview } from '@/others/pdfPreview.js'
 
 /**
  * Convierte HTML a texto plano con formato para jsPDF
@@ -54,8 +55,15 @@ const parseHtmlToTextSegments = (html) => {
 /**
  * Genera el reporte de análisis en PDF según la plantilla oficial
  * @param {Object} analysis - Datos del análisis completo
+ * @param {Object} options - Opciones de salida del documento
+ * @param {boolean} options.preview - Abre el PDF en una pestaña nueva
+ * @param {boolean} options.draft - Agrega la marca de agua de borrador
+ * @param {Window|null} options.previewWindow - Pestaña reservada para la previsualización
  */
-export const generarReporteAnalisisPDF = (analysis) => {
+export const generarReporteAnalisisPDF = (
+  analysis,
+  { preview = false, draft = false, previewWindow = null } = {},
+) => {
   console.log(analysis)
   const positivo =
     'La Cannabis o marihuana es un producto vegetal que por su propia naturaleza contiene principios activos – en concreto el THC – que es un producto del metabolismo de la planta, de cuya composición forma parte con mayor o menor riqueza en cualquiera de sus partes y en mayor o menor proporción, según la calidad del cultivo, zona agrícola de procedencia y otras variables naturales. Si además, el producto vegetal no ha sufrido un proceso químico de purificación de los principios activos, no afecta la concentración de THC, por ende Cannabis 100% pura. La Muestra analizada corresponde en su totalidad a material vegetal con características propias de Cannabis, sin evidencia de mezcla con otros materiales herbáceos y/o proceso químico de purificación de principio activo, por lo que la muestra corresponde a Cannabis 100% pura.'
@@ -166,7 +174,11 @@ export const generarReporteAnalisisPDF = (analysis) => {
   doc.text('2.- EXAMEN MICROSCÓPICO:', margin, yPos)
   doc.setFont('helvetica', 'normal')
   yPos += 6
-  doc.text('Característico de Cannabis sativa.', margin + 15, yPos)
+  doc.text(
+    draft && !analysis.micro ? 'Pendiente de completar.' : 'Característico de Cannabis sativa.',
+    margin + 15,
+    yPos,
+  )
 
   yPos += 8
 
@@ -177,7 +189,8 @@ export const generarReporteAnalisisPDF = (analysis) => {
   doc.setFont('helvetica', 'normal')
   doc.text('Método de Análisis: Fast Blue', margin + 15, yPos)
   yPos += 5
-  const fastBlueResult = analysis.fast_blue_result || analysis.result || 'Positivo'
+  const fastBlueResult =
+    analysis.fast_blue_result || analysis.result || (draft ? 'Pendiente' : 'Positivo')
   doc.text(`Resultado: Reacción Cualitativa ${fastBlueResult}`, margin + 15, yPos)
 
   yPos += 8
@@ -267,8 +280,9 @@ export const generarReporteAnalisisPDF = (analysis) => {
   doc.setFont('helvetica', 'normal')
 
   const analystName = analysis.user?.username || 'N/A'
-  const analysisDate = analysis.createdAt
-    ? new Date(analysis.createdAt).toLocaleDateString('es-CL')
+  const rawAnalysisDate = analysis.date_analysis || analysis.createdAt
+  const analysisDate = rawAnalysisDate
+    ? new Date(rawAnalysisDate).toLocaleDateString('es-CL')
     : new Date().toLocaleDateString('es-CL')
 
   // Sección final con nombre del analista
@@ -289,6 +303,13 @@ export const generarReporteAnalisisPDF = (analysis) => {
 
   // Generar y abrir PDF
   const fileName = `Protocolo_Analisis_${protocolNumber}_${substanceN}_${Date.now()}.pdf`
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc, previewWindow)
+    return
+  }
 
   // Comprimir antes de guardar
   doc.save(fileName)

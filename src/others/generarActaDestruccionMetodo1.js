@@ -1,10 +1,14 @@
 import jsPDF from 'jspdf'
+import { addDraftWatermark, openPdfPreview, parsePdfDate } from '@/others/pdfPreview.js'
 
 /**
  * Genera el acta de destrucción para método 1 (Incineración)
  * @param {Object} destructionHeader - Header de destrucción con información completa
  */
-export const generarActaDestruccionMetodo1PDF = async (destructionHeader) => {
+export const generarActaDestruccionMetodo1PDF = async (
+  destructionHeader,
+  { preview = false, draft = false, previewWindow = null } = {},
+) => {
   if (!destructionHeader) {
     console.error('No hay datos de destrucción para generar el documento')
     return
@@ -34,7 +38,11 @@ export const generarActaDestruccionMetodo1PDF = async (destructionHeader) => {
   // Fecha y lugar
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
-  const fechaTexto = `En Punta Arenas, a (día) de (mes) de (año).`
+  const destructionDate = parsePdfDate(destructionHeader.date_destruction)
+  const formattedDate = destructionDate
+    ? `${destructionDate.getDate()} de ${destructionDate.toLocaleDateString('es-CL', { month: 'long' })} de ${destructionDate.getFullYear()}`
+    : '(día) de (mes) de (año)'
+  const fechaTexto = `En Punta Arenas, a ${formattedDate}.`
   doc.text(fechaTexto, margin, yPos)
 
   yPos += 15
@@ -54,7 +62,7 @@ export const generarActaDestruccionMetodo1PDF = async (destructionHeader) => {
   yPos += 15
 
   // Procedimiento Fecha
-  doc.text(`Procedimiento Fecha: (día) de (mes) de (año)`, margin, yPos)
+  doc.text(`Procedimiento Fecha: ${formattedDate}`, margin, yPos)
   yPos += 15
 
   // Método de destrucción
@@ -96,6 +104,13 @@ export const generarActaDestruccionMetodo1PDF = async (destructionHeader) => {
   doc.line(firma2X - 20, firmaY, firma2X + 40, firmaY)
   doc.text('CARABINEROS DE CHILE', firma2X + 10, firmaY + 10, { align: 'center' })
   doc.text('PUNTA ARENAS', firma2X + 10, firmaY + 16, { align: 'center' })
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc, previewWindow)
+    return
+  }
 
   // Guardar PDF
   const fileName = `Acta_Destruccion_Metodo1_${destructionHeader.act_number}_${Date.now()}.pdf`

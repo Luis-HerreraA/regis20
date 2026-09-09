@@ -77,6 +77,15 @@
     <template #footer>
       <Button label="Cancelar" severity="secondary" @click="closeDialog" :disabled="isSaving" />
       <Button
+        label="Previsualizar"
+        icon="pi pi-eye"
+        severity="info"
+        outlined
+        @click="previewReport"
+        :loading="isPreviewing"
+        :disabled="isSaving"
+      />
+      <Button
         label="Guardar"
         severity="success"
         @click="submit"
@@ -91,20 +100,19 @@
 import { ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
 import Calendar from 'primevue/calendar'
 import Button from 'primevue/button'
 import Dropdown from 'primevue/dropdown'
 import { useToast } from 'primevue/usetoast'
 import microanalysisService from '@/services/microanalysisService.js'
 import analysisService from '@/services/analysisService.js'
+import { generarReporteMicroanalisisPDF } from '@/others/generarReporteMicroanalisis.js'
 
 export default {
   name: 'MicroanalysisDialog',
   components: {
     Dialog,
     InputText,
-    Textarea,
     Calendar,
     Button,
     Dropdown,
@@ -123,6 +131,7 @@ export default {
   setup(props, { emit }) {
     const toast = useToast()
     const isSaving = ref(false)
+    const isPreviewing = ref(false)
     const existingMicroanalysisId = ref(null)
 
     const statusOptions = [
@@ -203,6 +212,76 @@ export default {
 
     const closeDialog = () => {
       emit('update:visible', false)
+    }
+
+    const previewReport = () => {
+      if (!props.analysis?.id) {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Análisis inválido', life: 3000 })
+        return
+      }
+
+      const previewWindow = window.open('', '_blank')
+
+      if (!previewWindow) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Ventana bloqueada',
+          detail: 'Permita las ventanas emergentes para previsualizar el reporte',
+          life: 4000,
+        })
+        return
+      }
+
+      isPreviewing.value = true
+      try {
+        const microResult = formData.value.observation
+          ? formData.value.observation === 'Característico de Cannabis'
+            ? 'POSITIVO'
+            : 'NEGATIVO'
+          : null
+        const conclution = formData.value.observation
+          ? microResult === 'POSITIVO'
+            ? 'Se identifican estructuras compatibles con especie vegetal del género Cannabis'
+            : 'No se identifican estructuras compatibles con especie vegetal del género Cannabis'
+          : null
+        const previewAnalysis = {
+          ...props.analysis,
+          state: 'BORRADOR',
+          micro: microResult,
+        }
+        const previewMicroanalysis = {
+          ...formData.value,
+          date: formData.value.date ? formatDate(formData.value.date) : null,
+          conclution,
+          analysis: previewAnalysis,
+          user: props.analysis.user,
+        }
+
+        generarReporteMicroanalisisPDF(previewAnalysis, previewMicroanalysis, {
+          preview: true,
+          draft: true,
+          previewWindow,
+        })
+
+        toast.add({
+          severity: 'success',
+          summary: 'Vista previa generada',
+          detail: 'El borrador del reporte de microanálisis se abrió en una pestaña nueva',
+          life: 3000,
+        })
+      } catch (error) {
+        if (!previewWindow.closed) previewWindow.close()
+
+        console.error('Error previsualizando reporte de microanálisis:', error)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudo previsualizar el reporte de microanálisis',
+          life: 3000,
+        })
+      } finally {
+        isPreviewing.value = false
+      }
     }
 
     const submit = async () => {
@@ -294,10 +373,12 @@ export default {
     return {
       formData,
       isSaving,
+      isPreviewing,
       existingMicroanalysisId,
       statusOptions,
       resultOptions,
       closeDialog,
+      previewReport,
       submit,
       formatDate,
     }

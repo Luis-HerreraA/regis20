@@ -197,6 +197,15 @@
 
       <template #footer>
         <Button
+          label="Previsualizar"
+          icon="pi pi-eye"
+          severity="info"
+          outlined
+          @click="previewReport"
+          :loading="isPreviewing"
+          :disabled="isSaving"
+        />
+        <Button
           label="Guardar"
           severity="success"
           @click="submit"
@@ -221,6 +230,7 @@ import Dropdown from 'primevue/dropdown'
 import Checkbox from 'primevue/checkbox'
 import { useToast } from 'primevue/usetoast'
 import analysisService from '@/services/analysisService'
+import { generarReporteAnalisisPDF } from '@/others/generarReporteAnalisis.js'
 
 export default {
   name: 'CompleteAnalysis',
@@ -285,6 +295,66 @@ export default {
 
     const toast = useToast()
     const isSaving = ref(false)
+    const isPreviewing = ref(false)
+
+    const previewReport = () => {
+      if (!form.value?.id) {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Análisis inválido', life: 3000 })
+        return
+      }
+
+      const previewWindow = window.open('', '_blank')
+
+      if (!previewWindow) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Ventana bloqueada',
+          detail: 'Permita las ventanas emergentes para previsualizar el reporte',
+          life: 4000,
+        })
+        return
+      }
+
+      isPreviewing.value = true
+      try {
+        const macroResult = form.value.result
+          ? form.value.result === 'Característico de Cannabis'
+            ? 'POSITIVO'
+            : 'NEGATIVO'
+          : null
+        const previewData = {
+          ...form.value,
+          state: 'BORRADOR',
+          macro: macroResult,
+          result: null,
+        }
+
+        generarReporteAnalisisPDF(previewData, {
+          preview: true,
+          draft: true,
+          previewWindow,
+        })
+
+        toast.add({
+          severity: 'success',
+          summary: 'Vista previa generada',
+          detail: 'El borrador del reporte se abrió en una pestaña nueva',
+          life: 3000,
+        })
+      } catch (error) {
+        if (!previewWindow.closed) previewWindow.close()
+
+        console.error('Error previsualizando reporte de análisis:', error)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudo previsualizar el reporte de análisis',
+          life: 3000,
+        })
+      } finally {
+        isPreviewing.value = false
+      }
+    }
 
     // Emitir los datos para guardar (y persistir en backend)
     const submit = async () => {
@@ -385,6 +455,8 @@ export default {
       stateSeverity,
       getSampledFieldLabel,
       isSaving,
+      isPreviewing,
+      previewReport,
     }
   },
 }

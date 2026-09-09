@@ -31,13 +31,13 @@
               />
             </div>
           </div>
-          <TabView>
-            <TabPanel header="Análisis">
+          <TabView v-model:activeIndex="activeAnalysisTab">
+            <TabPanel v-for="tab in analysisTabs" :key="tab.key" :header="tab.label">
               <div class="table-container">
                 <DataTable
                   v-model:filters="filters"
                   v-model:selection="selectedAnalysis"
-                  :value="analysisList"
+                  :value="tab.analyses"
                   paginator
                   size="small"
                   :rows="10"
@@ -125,6 +125,14 @@
                   <Column header="Acciones">
                     <template #body="slotProps">
                       <div class="flex align-items-center gap-2">
+                        <Button
+                          v-if="tab.key === 'isp'"
+                          icon="pi pi-paperclip"
+                          class="p-button-rounded p-button-info p-button-outlined"
+                          @click="openAnalysisDocumentDialog(slotProps.data)"
+                          v-tooltip.top="'Adjuntar documentos'"
+                        />
+
                         <!-- Si el estado es RESERVADO, mostrar botones "Imprimir Reservado ISP" y "Imprimir Reservado Fiscalía" -->
                         <Button
                           v-if="slotProps.data.state === 'RESERVADO'"
@@ -245,6 +253,11 @@
     @saved="fetchAnalyses"
   />
 
+  <AnalysisDocumentDialog
+    v-model:visible="showAnalysisDocumentDialog"
+    :analysis="selectedAnalysisForDocuments"
+  />
+
   <!-- DIÁLOGO PARA NÚMERO RESERVADO -->
   <Dialog
     v-model:visible="showReservedNumberDialog"
@@ -274,6 +287,14 @@
         :disabled="isGeneratingReport"
       />
       <Button
+        label="Previsualizar"
+        icon="pi pi-eye"
+        severity="info"
+        outlined
+        @click="previewConsolidatedReport"
+        :disabled="isGeneratingReport"
+      />
+      <Button
         label="Generar Informe"
         severity="success"
         @click="confirmGenerateReport"
@@ -288,7 +309,8 @@
     v-model:visible="showReservedsDialog"
     modal
     header="Ingrese Números de Reservados"
-    :style="{ width: '450px' }"
+    :style="{ width: '650px' }"
+    :breakpoints="{ '768px': '95vw' }"
     :modal="true"
   >
     <div class="flex flex-column gap-4">
@@ -322,6 +344,24 @@
         :disabled="isGeneratingReserveds"
       />
       <Button
+        label="Previsualizar ISP"
+        icon="pi pi-eye"
+        severity="info"
+        outlined
+        @click="previewReserved('isp')"
+        :loading="previewingReserved === 'isp'"
+        :disabled="isGeneratingReserveds || Boolean(previewingReserved)"
+      />
+      <Button
+        label="Previsualizar Fiscalía"
+        icon="pi pi-eye"
+        severity="success"
+        outlined
+        @click="previewReserved('fiscalia')"
+        :loading="previewingReserved === 'fiscalia'"
+        :disabled="isGeneratingReserveds || Boolean(previewingReserved)"
+      />
+      <Button
         label="Generar Reservados"
         severity="info"
         @click="confirmGenerateReserveds"
@@ -333,7 +373,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { FilterMatchMode } from 'primevue/api'
 import PlantillaContenido from '../template/PlantillaContenido.vue'
@@ -377,6 +417,7 @@ import BulkPreAnalysisDialog from '@/components/preanalysis/BulkPreAnalysisDialo
 import CompleteAnalysis from '@/components/analysis/CompleteAnalysis.vue'
 import MicroanalysisDialog from '@/components/analysis/MicroanalysisDialog.vue'
 import ChemicalTestDialog from '@/components/analysis/ChemicalTestDialog.vue'
+import AnalysisDocumentDialog from '@/components/analysis/AnalysisDocumentDialog.vue'
 export default {
   name: 'PreAnalysisView',
   components: {
@@ -403,6 +444,7 @@ export default {
     CompleteAnalysis,
     MicroanalysisDialog,
     ChemicalTestDialog,
+    AnalysisDocumentDialog,
   },
 
   setup() {
@@ -421,6 +463,38 @@ export default {
     const loadingAnalysis = ref(false)
     const selectedAnalysis = ref([])
     const selectedAnalysisActNumber = ref(null)
+    const activeAnalysisTab = ref(0)
+
+    const isCannabisAnalysis = (analysis) => {
+      const substance = analysis?.preAnalysis?.substance
+      const substanceName = substance?.substanceType?.name || substance?.substanceTypeName || ''
+      const normalizedName = substanceName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+
+      if (normalizedName.includes('resina')) return false
+
+      return normalizedName.includes('cannabis') || normalizedName.includes('marihuana')
+    }
+
+    const analysisTabs = computed(() => [
+      {
+        key: 'cannabis',
+        label: 'Cannabis',
+        analyses: analysisList.value.filter(isCannabisAnalysis),
+      },
+      {
+        key: 'isp',
+        label: 'ISP',
+        analyses: analysisList.value.filter((analysis) => !isCannabisAnalysis(analysis)),
+      },
+    ])
+
+    watch(activeAnalysisTab, () => {
+      selectedAnalysis.value = []
+      selectedAnalysisActNumber.value = null
+    })
 
     // Dialog de microanálisis
     const showMicroanalysisDialog = ref(false)
@@ -429,6 +503,15 @@ export default {
     // Dialog de examen químico
     const showChemicalTestDialog = ref(false)
     const selectedAnalysisForChemicalTest = ref(null)
+
+    // Los documentos se gestionan exclusivamente desde las filas de la pestaña ISP.
+    const showAnalysisDocumentDialog = ref(false)
+    const selectedAnalysisForDocuments = ref(null)
+
+    const openAnalysisDocumentDialog = (analysis) => {
+      selectedAnalysisForDocuments.value = analysis
+      showAnalysisDocumentDialog.value = true
+    }
 
     // Dialog para número reservado
     const showReservedNumberDialog = ref(false)
@@ -442,6 +525,7 @@ export default {
       isp: null,
     })
     const isGeneratingReserveds = ref(false)
+    const previewingReserved = ref(null)
 
     // Diálogo de pre-análisis individual
     const showPreAnalysisDialog = ref(false)
@@ -1191,9 +1275,9 @@ export default {
       // Contar cuántos campos están llenos
       const filledCount = (macro ? 1 : 0) + (micro ? 1 : 0) + (result ? 1 : 0)
       console.log('Campos llenos:', filledCount)
-      // Si no todos los tres están llenos, es EN PROCESO (incluyendo cuando ninguno está lleno)
+      // Los análisis incompletos se muestran como EN PROCESO en Cannabis y ENVIADO en ISP
       if (filledCount < 3) {
-        return 'EN PROCESO'
+        return isCannabisAnalysis(analysis) ? 'EN PROCESO' : 'ENVIADO'
       }
 
       // Si los tres son POSITIVO
@@ -1219,6 +1303,7 @@ export default {
         case 'INDETERMINADO':
           return 'warning'
         case 'EN PROCESO':
+        case 'ENVIADO':
           return 'info'
         default:
           return 'info'
@@ -1346,6 +1431,33 @@ export default {
       showReservedNumberDialog.value = true
     }
 
+    const previewConsolidatedReport = () => {
+      if (!reservedNumber.value || reservedNumber.value.toString().trim() === '') {
+        toast.add({
+          severity: 'warn',
+          summary: 'Número reservado requerido',
+          detail: 'Debe ingresar un número reservado para previsualizar el informe',
+          life: 2500,
+        })
+        return
+      }
+
+      try {
+        generarInformeConsolidadoPDF(selectedAnalysis.value, reservedNumber.value, {
+          preview: true,
+          draft: true,
+        })
+      } catch (error) {
+        console.error('Error previsualizando informe consolidado:', error)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudo previsualizar el informe consolidado',
+          life: 3000,
+        })
+      }
+    }
+
     const confirmGenerateReport = async () => {
       if (!reservedNumber.value || reservedNumber.value.toString().trim() === '') {
         toast.add({
@@ -1443,7 +1555,7 @@ export default {
       showReservedsDialog.value = true
     }
 
-    const confirmGenerateReserveds = async () => {
+    const validateReservedNumbers = () => {
       if (
         !reservedsData.value.fiscaliaLocal ||
         reservedsData.value.fiscaliaLocal.toString().trim() === ''
@@ -1454,7 +1566,7 @@ export default {
           detail: 'Debe ingresar el número de reservado de Fiscalía Local',
           life: 2500,
         })
-        return
+        return false
       }
 
       if (!reservedsData.value.isp || reservedsData.value.isp.toString().trim() === '') {
@@ -1464,8 +1576,89 @@ export default {
           detail: 'Debe ingresar el número de reservado del Instituto de Salud Pública',
           life: 2500,
         })
+        return false
+      }
+
+      return true
+    }
+
+    const previewReserved = async (documentType) => {
+      if (!validateReservedNumbers()) return
+
+      const analysis = selectedAnalysis.value[0]
+      if (!analysis) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Sin selección',
+          detail: 'Debe seleccionar al menos un análisis',
+          life: 2500,
+        })
         return
       }
+
+      const previewWindow = window.open('', '_blank')
+      if (!previewWindow) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Ventana bloqueada',
+          detail: 'Permita las ventanas emergentes para previsualizar el reservado',
+          life: 4000,
+        })
+        return
+      }
+
+      previewingReserved.value = documentType
+      try {
+        const previewReserveds = [
+          {
+            number: reservedsData.value.fiscaliaLocal,
+            analysis,
+            fiscal: true,
+            isp: false,
+          },
+          {
+            number: reservedsData.value.isp,
+            analysis,
+            fiscal: false,
+            isp: true,
+          },
+        ]
+        const previewOptions = {
+          preview: true,
+          draft: true,
+          previewWindow,
+          analyses: selectedAnalysis.value.map((selected) => ({ analysis: selected })),
+        }
+
+        if (documentType === 'isp') {
+          await generarReservadoPDF(analysis, previewReserveds, previewOptions)
+        } else {
+          await generarReservadoFiscaliaPDF(analysis, previewReserveds, previewOptions)
+        }
+
+        toast.add({
+          severity: 'success',
+          summary: 'Vista previa generada',
+          detail: `El borrador del reservado de ${documentType === 'isp' ? 'ISP' : 'Fiscalía'} se abrió en una pestaña nueva`,
+          life: 3000,
+        })
+      } catch (error) {
+        if (!previewWindow.closed) previewWindow.close()
+
+        console.error('Error previsualizando reservado:', error)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudo previsualizar el documento reservado',
+          life: 3000,
+        })
+      } finally {
+        previewingReserved.value = null
+      }
+    }
+
+    const confirmGenerateReserveds = async () => {
+      if (!validateReservedNumbers()) return
 
       try {
         isGeneratingReserveds.value = true
@@ -1813,6 +2006,8 @@ export default {
       handleBulkPreAnalysisCancel,
       selectedPreAnalysis,
       analysisList,
+      analysisTabs,
+      activeAnalysisTab,
       loadingAnalysis,
       selectedAnalysis,
       canSelectAnalysis,
@@ -1826,12 +2021,16 @@ export default {
       handleAnalysisCompleted,
       fetchAnalyses,
       generateConsolidatedReport,
+      previewConsolidatedReport,
       showMicroanalysisDialog,
       selectedAnalysisForMicroanalysis,
       openMicroanalysisDialog,
       showChemicalTestDialog,
       selectedAnalysisForChemicalTest,
       openChemicalTestDialog,
+      showAnalysisDocumentDialog,
+      selectedAnalysisForDocuments,
+      openAnalysisDocumentDialog,
       sendToISP,
       printReserved,
       printReservedFiscalia,
@@ -1843,6 +2042,8 @@ export default {
       showReservedsDialog,
       reservedsData,
       isGeneratingReserveds,
+      previewingReserved,
+      previewReserved,
       confirmGenerateReserveds,
       hasOnlyInteriorDestination,
       hasOnlyExteriorDestination,

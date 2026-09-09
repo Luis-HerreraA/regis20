@@ -1,11 +1,20 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { addDraftWatermark, openPdfPreview } from '@/others/pdfPreview.js'
 
 /**
  * Genera un informe consolidado con múltiples análisis del mismo acta
  * @param {Array} analyses - Array de análisis seleccionados
+ * @param {number|string} reservedNumber - Número reservado del informe
+ * @param {Object} options - Opciones de salida
+ * @param {boolean} options.preview - Abre el PDF en una pestaña en vez de descargarlo
+ * @param {boolean} options.draft - Agrega la marca de agua de borrador
  */
-export const generarInformeConsolidadoPDF = (analyses) => {
+export const generarInformeConsolidadoPDF = (
+  analyses,
+  reservedNumber,
+  { preview = false, draft = false } = {},
+) => {
   if (!analyses || analyses.length === 0) {
     console.error('No hay análisis para generar el informe')
     return
@@ -25,6 +34,7 @@ export const generarInformeConsolidadoPDF = (analyses) => {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text('RESERVADO.:', pageWidth - margin - 50, 35, { align: 'right' })
+  doc.text(String(reservedNumber || '—'), pageWidth - margin, 35, { align: 'right' })
 
   let yPos = 45
 
@@ -179,6 +189,13 @@ export const generarInformeConsolidadoPDF = (analyses) => {
   const footerText =
     'Lautaro Navarro N° 525 - Casilla N° 527 - Fono 61 2294000 - E-mail: direccion.ssm@redsalud.gob.cl - PUNTA ARENAS'
   doc.text(footerText, pageWidth / 2, yPos, { align: 'center' })
+
+  if (draft) addDraftWatermark(doc)
+
+  if (preview) {
+    openPdfPreview(doc)
+    return
+  }
 
   // Generar y descargar PDF con compresión
   const fileName = `Informe_Consolidado_Acta_${actaNumber}_${Date.now()}.pdf`

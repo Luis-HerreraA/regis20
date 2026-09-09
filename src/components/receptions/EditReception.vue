@@ -29,7 +29,7 @@
         <div class="grid formgrid p-fluid">
           <div class="field col-12 md:col-2">
             <label>N° Acta</label>
-            <InputText v-model="form.number" placeholder="N° de acta" />
+            <InputText v-model="form.number" placeholder="N° de acta" readonly />
           </div>
 
           <div class="field col-12 md:col-2">
@@ -37,12 +37,17 @@
             <InputText v-model="form.of_number" />
           </div>
 
-          <div class="field col-12 md:col-4">
+          <div class="field col-12 md:col-2">
+            <label>Número de Parte</label>
+            <InputText v-model="form.nparte" placeholder="N° de parte" />
+          </div>
+
+          <div class="field col-12 md:col-3">
             <label>Fecha Oficio</label>
             <Calendar v-model="form.of_number_date" dateFormat="dd/mm/yy" showIcon />
           </div>
 
-          <div class="field col-12 md:col-4">
+          <div class="field col-12 md:col-3">
             <label>Fecha Recepción</label>
             <Calendar v-model="form.date_reception" dateFormat="dd/mm/yy" showIcon />
           </div>
@@ -97,10 +102,9 @@
           <div class="field col-12 md:col-3">
             <label>Grado</label>
             <Dropdown
-              v-model="form.police.grade.id"
+              v-model="form.police.grade"
               :options="grades"
               optionLabel="name"
-              optionValue="id"
               placeholder="Seleccione grado"
               class="w-full"
               :filter="true"
@@ -110,10 +114,9 @@
           <div class="field col-12">
             <label>Institución</label>
             <Dropdown
-              v-model="form.police.institutionType.institution.id"
+              v-model="form.police.institution"
               :options="institutions"
               optionLabel="name"
-              optionValue="id"
               placeholder="Seleccione una institución"
               class="w-full"
             />
@@ -122,10 +125,9 @@
           <div class="field col-12 md:col-6">
             <label>Tipo de Institución</label>
             <Dropdown
-              v-model="form.police.institutionType.id"
+              v-model="form.police.institutionType"
               :options="institutionTypes"
               optionLabel="name"
-              optionValue="id"
               placeholder="Seleccione tipo"
               class="w-full"
               :filter="true"
@@ -205,61 +207,23 @@
           💊 Sustancias Asociadas
         </div>
 
-        <!-- 🧩 Formulario para agregar/editar sustancias (solo si es BORRADOR) -->
+        <!-- Formulario para agregar/editar sustancias (igual a CreateReception) -->
         <div v-if="form.state === 'BORRADOR'" class="grid formgrid p-fluid align-items-end">
-          <!-- Tipo de sustancia -->
-          <div class="field col-12 md:col-3">
+          <div class="field col-12 md:col-6">
             <label>Tipo de Sustancia</label>
             <Dropdown
               v-model="editingSubstance.substanceType"
               :options="substancesTypes"
               optionLabel="name"
               optionValue="id"
-              placeholder="Seleccione tipo"
+              placeholder="Seleccione sustancia"
               class="w-full"
               :filter="true"
             />
           </div>
 
-          <!-- Peso bruto -->
-          <div class="field col-12 md:col-2">
-            <label>Peso Bruto (gr)</label>
-            <InputNumber
-              v-model="editingSubstance.weight"
-              :min="0"
-              mode="decimal"
-              :maxFractionDigits="2"
-              class="w-full"
-            />
-          </div>
-
-          <!-- Peso neto -->
-          <div class="field col-12 md:col-2">
-            <label>Peso Neto (gr)</label>
-            <InputNumber
-              v-model="editingSubstance.weight_net"
-              :min="0"
-              mode="decimal"
-              :maxFractionDigits="2"
-              class="w-full"
-            />
-          </div>
-
-          <!-- Cantidad de unidades -->
-          <div class="field col-12 md:col-2">
-            <label>Cantidad de unidades</label>
-            <InputNumber
-              v-model="editingSubstance.unit_quantity"
-              :min="0"
-              mode="decimal"
-              :maxFractionDigits="2"
-              class="w-full"
-            />
-          </div>
-
-          <!-- Packaging -->
-          <div class="field col-12 md:col-3">
-            <label>Contenedor / Packaging</label>
+          <div class="field col-12 md:col-6">
+            <label>Contenedor</label>
             <Dropdown
               v-model="editingSubstance.packaging"
               :options="packagings"
@@ -272,23 +236,62 @@
           </div>
         </div>
 
-        <!-- 🧩 Fila 2: Comuna, NUE, Descripción, Botón (solo si es BORRADOR) -->
-        <div v-if="form.state === 'BORRADOR'" class="grid formgrid p-fluid align-items-end mt-3">
-          <!-- Comuna -->
+        <div v-if="form.state === 'BORRADOR'" class="grid formgrid p-fluid align-items-end">
           <div class="field col-12 md:col-3">
-            <label>Comuna</label>
+            <label>Tipo de Medición</label>
             <Dropdown
-              v-model="editingSubstance.commune"
-              :options="communes"
-              optionLabel="name"
-              optionValue="id"
-              placeholder="Seleccione comuna"
+              v-model="editingSubstance.measurement_type"
+              :options="unityOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Seleccione tipo de medición"
               class="w-full"
               :filter="true"
             />
           </div>
 
-          <!-- NUE -->
+          <div class="field col-12 md:col-2">
+            <label>Peso Bruto</label>
+            <InputNumber
+              v-model="editingSubstance.weight"
+              :min="0"
+              mode="decimal"
+              :maxFractionDigits="2"
+              class="w-full"
+            />
+          </div>
+
+          <div class="field col-12 md:col-2">
+            <label>Peso Neto</label>
+            <InputNumber
+              v-model="editingSubstance.weight_net"
+              :min="0"
+              mode="decimal"
+              :maxFractionDigits="2"
+              class="w-full"
+            />
+          </div>
+
+          <div v-show="editingSubstance.measurement_type === 'OTROS'" class="field col-12 md:col-2">
+            <label>Otra unidad</label>
+            <InputText
+              v-model="editingSubstance.other_unity"
+              placeholder="Ej: cápsulas, frascos..."
+              class="w-full"
+            />
+          </div>
+
+          <div v-show="isUnitMeasurement" class="field col-12 md:col-2">
+            <label>Cantidad</label>
+            <InputNumber
+              v-model="editingSubstance.unit_quantity"
+              :min="0"
+              mode="decimal"
+              :maxFractionDigits="2"
+              class="w-full"
+            />
+          </div>
+
           <div class="field col-12 md:col-3">
             <label>NUE</label>
             <InputText
@@ -297,9 +300,10 @@
               class="w-full"
             />
           </div>
+        </div>
 
-          <!-- Descripción -->
-          <div class="field col-12 md:col-4">
+        <div v-if="form.state === 'BORRADOR'" class="grid formgrid p-fluid align-items-end mt-2">
+          <div class="field col-12 md:col-9">
             <label>Descripción</label>
             <Textarea
               v-model="editingSubstance.description"
@@ -310,13 +314,12 @@
             />
           </div>
 
-          <!-- Botón agregar / actualizar -->
-          <div class="field col-12 md:col-2 text-center">
+          <div class="field col-12 md:col-3 text-center">
             <Button
               :icon="editingSubstanceIndex === null ? 'pi pi-plus' : 'pi pi-save'"
               :label="editingSubstanceIndex === null ? 'Agregar' : 'Actualizar'"
               @click="applyEditingSubstance"
-              :disabled="!editingSubstance.substanceType || !editingSubstance.weight"
+              :disabled="!isEditingSubstanceValid"
               class="mt-4 w-full"
             />
           </div>
@@ -348,16 +351,30 @@
           <!-- Peso Bruto -->
           <Column field="weight" header="Peso Bruto (gr)">
             <template #body="slotProps">
-              {{ Number(slotProps.data.weight || 0).toFixed(2) }}
+              {{
+                slotProps.data.weight === null ||
+                slotProps.data.weight === undefined ||
+                slotProps.data.weight === ''
+                  ? '-'
+                  : Number(slotProps.data.weight).toFixed(2)
+              }}
             </template>
           </Column>
 
           <!-- Peso Neto -->
           <Column field="weight_net" header="Peso Neto (gr)">
             <template #body="slotProps">
-              {{ Number(slotProps.data.weight_net || 0).toFixed(2) }}
+              {{
+                slotProps.data.weight_net === null ||
+                slotProps.data.weight_net === undefined ||
+                slotProps.data.weight_net === ''
+                  ? '-'
+                  : Number(slotProps.data.weight_net).toFixed(2)
+              }}
             </template>
           </Column>
+
+          <Column field="measurement_type" header="Tipo de Medición"></Column>
 
           <!-- Cantidad de unidades -->
           <Column field="unit_quantity" header="Cantidad">
@@ -394,6 +411,13 @@
             bodyStyle="text-align:center; white-space: nowrap;"
           >
             <template #body="slotProps">
+              <Button
+                icon="pi pi-copy"
+                severity="info"
+                text
+                v-tooltip="'Duplicar sustancia'"
+                @click="duplicateSubstance(slotProps.index)"
+              />
               <Button
                 icon="pi pi-pencil"
                 class="p-button-text p-button-plain"
@@ -435,9 +459,18 @@
         <!-- Botón para guardar borrador -->
         <Button
           v-if="form.state === 'BORRADOR'"
-          label="Completar Recepción"
+          label="Guardar borrador"
+          severity="info"
           icon="pi pi-save"
           @click="guardarBorrador"
+          :loading="isSaving"
+        />
+
+        <Button
+          v-if="form.state === 'BORRADOR'"
+          label="Completar Recepción"
+          icon="pi pi-save"
+          @click="completarRecepcion"
           :loading="isSaving"
         />
 
@@ -482,7 +515,6 @@ import substancesTypesService from '@/services/substancesTypesService'
 import gradesService from '@/services/gradesService'
 import packagingsService from '@/services/packagingsService'
 import receptionsHistoryService from '@/services/receptionsHistoryService'
-import preAnalysisService from '@/services/preAnalysisService' // ✅ Asegúrate de importar esto
 
 export default {
   name: 'EditReception',
@@ -521,6 +553,7 @@ export default {
     const isSaving = ref(false)
     const buscandoPolicia = ref(false)
     const rutError = ref('')
+    const isNewPolice = ref(false)
     const toast = useToast()
 
     // dropdowns
@@ -539,6 +572,7 @@ export default {
       id: null,
       number: '',
       of_number: '',
+      nparte: '',
       of_number_date: null,
       date_reception: null,
       location: { id: 1 },
@@ -574,16 +608,142 @@ export default {
       nsubstance: null,
       nue: '',
       description: '',
-      measurement_type: null,
+      measurement_type: 'GRAMOS',
       unit_quantity: null,
       weight: null,
       weight_net: null,
       unity: null,
+      other_unity: '',
       substanceType: null,
       packaging: null,
       commune: null,
     })
     const editingSubstanceIndex = ref(null) // null = nueva, otherwise index en form.substances
+    const deletedSubstanceIds = ref([])
+
+    const unityOptions = [
+      { label: 'Gramos', value: 'GRAMOS' },
+      { label: 'Unidades', value: 'UNIDADES' },
+    ]
+
+    const normalizeValue = (value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase()
+
+    const getResolvedMeasurementType = (substance) => {
+      if (normalizeValue(substance.measurement_type) === 'otros') {
+        return String(substance.other_unity || '').trim()
+      }
+
+      return substance.measurement_type
+    }
+
+    const isUnitMeasurementType = (measurementType) => {
+      const normalizedMeasurementType = normalizeValue(measurementType)
+      return (
+        normalizedMeasurementType.includes('unidad') ||
+        normalizedMeasurementType.includes('paquete')
+      )
+    }
+
+    const normalizeMeasurementTypeForForm = (measurementType) => {
+      if (isUnitMeasurementType(measurementType)) return 'UNIDADES'
+      if (normalizeValue(measurementType).includes('gramo')) return 'GRAMOS'
+      return measurementType || 'GRAMOS'
+    }
+
+    const isUnitMeasurement = computed(() =>
+      isUnitMeasurementType(getResolvedMeasurementType(editingSubstance)),
+    )
+
+    const validateSubstanceData = (substance, index = null) => {
+      const rowLabel = index !== null ? `sustancia N°${index + 1}` : 'sustancia'
+
+      if (!substance.substanceType) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Dato faltante',
+          detail: `Debe seleccionar tipo de sustancia en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (!normalizeValue(getResolvedMeasurementType(substance))) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Tipo de medición requerido',
+          detail: `Debe seleccionar el tipo de medición en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (
+        isUnitMeasurementType(getResolvedMeasurementType(substance)) &&
+        Number(substance.unit_quantity || 0) <= 0
+      ) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Cantidad inválida',
+          detail: `La cantidad debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (Number(substance.weight || 0) <= 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Peso inválido',
+          detail: `El peso bruto debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (
+        substance.weight_net !== null &&
+        substance.weight_net !== undefined &&
+        Number(substance.weight_net) > Number(substance.weight)
+      ) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Pesos inconsistentes',
+          detail: `El peso neto no puede ser mayor al peso bruto en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      return true
+    }
+
+    const isEditingSubstanceValid = computed(() => {
+      if (!editingSubstance.substanceType) return false
+      if (!normalizeValue(getResolvedMeasurementType(editingSubstance))) return false
+      if (Number(editingSubstance.weight || 0) <= 0) return false
+      return !isUnitMeasurement.value || Number(editingSubstance.unit_quantity || 0) > 0
+    })
+
+    const validateFormBeforeSave = () => {
+      if (rutError.value) {
+        toast.add({
+          severity: 'warn',
+          summary: 'RUT inválido',
+          detail: 'Corrija el RUT del policía antes de guardar.',
+          life: 3500,
+        })
+        return false
+      }
+
+      for (let index = 0; index < form.substances.length; index += 1) {
+        if (!validateSubstanceData(form.substances[index], index)) return false
+      }
+
+      return true
+    }
 
     // cargar listas
     const fetchDropdownData = async () => {
@@ -655,6 +815,24 @@ export default {
       },
     )
 
+    watch(
+      () => [editingSubstance.measurement_type, editingSubstance.other_unity],
+      () => {
+        if (!isUnitMeasurement.value) editingSubstance.unit_quantity = null
+      },
+    )
+
+    watch(
+      () => form.police.institutionType?.commune?.id,
+      (communeId) => {
+        const selectedCommuneId = communeId || null
+        editingSubstance.commune = selectedCommuneId
+        form.substances.forEach((substance) => {
+          substance.commune = selectedCommuneId
+        })
+      },
+    )
+
     // abrir diálogo: cargar listas y datos de la recepción
     const openDialog = async () => {
       visible.value = true
@@ -674,6 +852,7 @@ export default {
         id: null,
         number: '',
         of_number: '',
+        nparte: '',
         of_number_date: null,
         date_reception: null,
         location: { id: 1 },
@@ -705,18 +884,22 @@ export default {
 
       Object.assign(editingSubstance, {
         id: null,
+        nsubstance: null,
         nue: '',
         description: '',
-        measurement_type: null,
+        measurement_type: 'GRAMOS',
         unit_quantity: null,
         weight: null,
         weight_net: null,
         unity: null,
+        other_unity: '',
         substanceType: null,
         packaging: null,
         commune: null,
       })
       editingSubstanceIndex.value = null
+      deletedSubstanceIds.value = []
+      isNewPolice.value = false
       rutError.value = ''
     }
 
@@ -740,6 +923,7 @@ export default {
         form.id = data.id
         form.number = data.number || ''
         form.of_number = data.of_number || ''
+        form.nparte = data.nparte || ''
         form.of_number_date = data.of_number_date || null
         form.date_reception = data.date_reception || null
         form.location = data.location || { id: 1 }
@@ -747,7 +931,16 @@ export default {
 
         // policía: si viene como objeto o id — adaptamos
         form.police = data.police
-          ? { ...data.police }
+          ? {
+              ...data.police,
+              grade: data.police.grade || { id: null, name: '' },
+              institution: data.police.institution ||
+                data.police.institutionType?.institution || { id: null, name: '' },
+              institutionType: {
+                ...(data.police.institutionType || { id: null, name: '' }),
+                commune: data.police.institutionType?.commune || { id: null, name: '' },
+              },
+            }
           : {
               id: 0,
               rut: '',
@@ -774,7 +967,9 @@ export default {
           nsubstance: s.nsubstance ?? null,
           nue: s.nue ?? s.nue ?? '',
           description: s.description ?? '',
-          measurement_type: s.measurement_type ?? s.measurementType ?? s.unity ?? null,
+          measurement_type: normalizeMeasurementTypeForForm(
+            s.measurement_type ?? s.measurementType ?? s.unity,
+          ),
           unit_quantity: s.unit_quantity ?? s.unitQuantity ?? null,
           weight: s.weight ?? null,
           weight_net: s.weight_net ?? null,
@@ -805,7 +1000,9 @@ export default {
           nsubstance: s.nsubstance ?? null,
           nue: s.nue ?? '',
           description: s.description ?? '',
-          measurement_type: s.measurement_type ?? s.measurementType ?? s.unity ?? null,
+          measurement_type: normalizeMeasurementTypeForForm(
+            s.measurement_type ?? s.measurementType ?? s.unity,
+          ),
           unit_quantity: s.unit_quantity ?? s.unitQuantity ?? null,
           weight: s.weight ?? null,
           weight_net: s.weight_net ?? null,
@@ -836,6 +1033,7 @@ export default {
         const datos = await policeService.getByRut(form.police.rut)
         const data = datos.data.content && datos.data.content.length ? datos.data.content[0] : null
         if (data) {
+          isNewPolice.value = false
           form.police.id = data.id || 0
           form.police.firstName = data.firstName || ''
           form.police.secondName = data.secondName || ''
@@ -858,6 +1056,7 @@ export default {
             }
           }
         } else {
+          isNewPolice.value = true
           toast.add({
             severity: 'warn',
             summary: 'No encontrado',
@@ -878,22 +1077,52 @@ export default {
       }
     }
 
+    const crearPoliciaSiEsNuevo = async () => {
+      if (!isNewPolice.value) return form.police
+
+      const policePayload = {
+        rut: form.police.rut,
+        firstName: form.police.firstName,
+        secondName: form.police.secondName,
+        firstLastName: form.police.firstLastName,
+        secondLastName: form.police.secondLastName,
+        email: form.police.email,
+        cellphone: form.police.cellphone,
+        grade: form.police.grade?.id ? form.police.grade : null,
+        institution: form.police.institution?.id ? form.police.institution : null,
+        institutionType: form.police.institutionType?.id ? form.police.institutionType : null,
+      }
+
+      const { data } = await policeService.create(policePayload)
+      form.police = {
+        ...data,
+        institution:
+          data.institution || data.institutionType?.institution || form.police.institution,
+      }
+      isNewPolice.value = false
+      return data
+    }
+
     // agregar o actualizar la substancia temporal (desde el pequeño formulario de sustancia)
     const applyEditingSubstance = () => {
-      // validación mínima ya manejada por disabled del botón
+      if (!validateSubstanceData(editingSubstance)) return
+
+      const resolvedMeasurementType = getResolvedMeasurementType(editingSubstance)
       const sub = {
         id: editingSubstance.id ?? null,
         nsubstance: editingSubstance.nsubstance ?? null,
         nue: editingSubstance.nue,
-        description: editingSubstance.description,
-        measurement_type: editingSubstance.measurement_type,
-        unit_quantity: editingSubstance.unit_quantity,
+        description: String(editingSubstance.description || '').trim() || null,
+        measurement_type: resolvedMeasurementType,
+        unit_quantity: isUnitMeasurementType(resolvedMeasurementType)
+          ? editingSubstance.unit_quantity
+          : null,
         weight: editingSubstance.weight,
         weight_net: editingSubstance.weight_net,
         unity: editingSubstance.unity,
         substanceType: editingSubstance.substanceType,
         packaging: editingSubstance.packaging,
-        commune: editingSubstance.commune,
+        commune: form.police.institutionType?.commune?.id || editingSubstance.commune || null,
       }
 
       if (editingSubstanceIndex.value === null) {
@@ -912,11 +1141,12 @@ export default {
         nsubstance: null,
         nue: '',
         description: '',
-        measurement_type: null,
+        measurement_type: 'GRAMOS',
         unit_quantity: null,
         weight: null,
         weight_net: null,
         unity: null,
+        other_unity: '',
         substanceType: null,
         packaging: null,
         commune: null,
@@ -931,11 +1161,14 @@ export default {
       editingSubstance.nsubstance = s.nsubstance ?? null
       editingSubstance.nue = s.nue ?? ''
       editingSubstance.description = s.description ?? ''
-      editingSubstance.measurement_type = s.measurement_type ?? s.measurementType ?? s.unity ?? null
+      editingSubstance.measurement_type = normalizeMeasurementTypeForForm(
+        s.measurement_type ?? s.measurementType ?? s.unity,
+      )
       editingSubstance.unit_quantity = s.unit_quantity ?? s.unitQuantity ?? null
       editingSubstance.weight = s.weight ?? null
       editingSubstance.weight_net = s.weight_net ?? null
       editingSubstance.unity = s.unity ?? null
+      editingSubstance.other_unity = ''
       editingSubstance.substanceType = s.substanceType ?? null
       editingSubstance.packaging = s.packaging ?? null
       editingSubstance.commune = s.commune ?? null
@@ -945,6 +1178,10 @@ export default {
     }
 
     const removeSubstance = (index) => {
+      const substance = form.substances[index]
+      if (substance?.id && !deletedSubstanceIds.value.includes(substance.id)) {
+        deletedSubstanceIds.value.push(substance.id)
+      }
       form.substances.splice(index, 1)
 
       // Renumerar todas las sustancias restantes
@@ -959,11 +1196,12 @@ export default {
           nsubstance: null,
           nue: '',
           description: '',
-          measurement_type: null,
+          measurement_type: 'GRAMOS',
           unit_quantity: null,
           weight: null,
           weight_net: null,
           unity: null,
+          other_unity: '',
           substanceType: null,
           packaging: null,
           commune: null,
@@ -972,11 +1210,25 @@ export default {
       }
     }
 
+    const duplicateSubstance = (index) => {
+      const duplicated = {
+        ...form.substances[index],
+        id: null,
+      }
+
+      form.substances.splice(index + 1, 0, duplicated)
+      form.substances.forEach((substance, substanceIndex) => {
+        substance.nsubstance = substanceIndex + 1
+      })
+    }
+
     // guardar edición: armar payload completo y llamar update
     // arriba en imports (añádelo si no está)
     // import receptionHistoryService from '@/services/receptionHistoryService'
 
     const guardarEdicion = async () => {
+      if (!validateFormBeforeSave()) return
+
       // Validación previa: descripción obligatoria
       if (form.state === 'FINALIZADO' || form.state === null || form.state === 'EDITABLE') {
         if (!editDescription.value || !editDescription.value.trim()) {
@@ -1000,6 +1252,7 @@ export default {
           id: form.id,
           number: form.number,
           of_number: form.of_number,
+          nparte: form.nparte,
           of_number_date: formatDateOnly(form.of_number_date),
           date_reception: formatDateOnly(form.date_reception),
           location: form.location && form.location.id ? { id: form.location.id } : null,
@@ -1033,7 +1286,6 @@ export default {
         console.log('✅ Recepción actualizada correctamente:', response.data)
 
         // 2️⃣ Procesar sustancias (crear/actualizar según tengan id)
-        let createdSubstances = []
         if (form.substances && form.substances.length > 0) {
           console.log('💊 Actualizando/creando sustancias asociadas...')
 
@@ -1067,33 +1319,16 @@ export default {
             }
           })
 
-          const results = await Promise.all(promises)
-          createdSubstances = results.map((result) => result.data)
+          await Promise.all(promises)
           console.log('✅ Sustancias actualizadas/creadas correctamente')
         }
-        // 🆕 3️⃣ CREAR PRE-ANÁLISIS PARA NUEVAS SUSTANCIAS EN RECEPCIONES FINALIZADAS
-        if (createdSubstances.length > 0) {
-          console.log('🔬 Creando registros de pre-análisis para nuevas sustancias...')
 
-          const preAnalysisPromises = createdSubstances.map((substance) => {
-            const preAnalysisPayload = {
-              weight_sampled: substance.weight_net || 0,
-              observation: 'Pendiente de análisis',
-              reception: response.data,
-              substance: substance,
-              destination: { id: 1 },
-              methodDestruction: { id: 1 },
-              user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
-            }
-
-            console.log('📤 Creando pre-análisis:', preAnalysisPayload)
-            return preAnalysisService.create(preAnalysisPayload)
-          })
-
-          await Promise.all(preAnalysisPromises)
-          console.log('✅ Pre-análisis creados para nuevas sustancias')
+        if (deletedSubstanceIds.value.length > 0) {
+          await Promise.all(deletedSubstanceIds.value.map((id) => substancesService.delete(id)))
+          deletedSubstanceIds.value = []
         }
-        // 4️⃣  Registrar historial de edición SOLO SI todo lo anterior fue exitoso
+
+        // Registrar historial de edición SOLO SI todo lo anterior fue exitoso
         try {
           await receptionsHistoryService.create({
             reception: form,
@@ -1138,107 +1373,87 @@ export default {
       }
     }
 
-    const guardarBorrador = async () => {
+    const updateDraft = async (state) => {
+      if (!validateFormBeforeSave()) return
+
       showValidationError.value = false
       isSaving.value = true
 
       try {
-        // 1️⃣ Construir payload completo de la recepción
-        const payload = {
+        await crearPoliciaSiEsNuevo()
+
+        const receptionPayload = {
           id: form.id,
           number: form.number,
           of_number: form.of_number,
+          nparte: form.nparte,
           of_number_date: formatDateOnly(form.of_number_date),
           date_reception: formatDateOnly(form.date_reception),
-          location: form.location && form.location.id ? { id: form.location.id } : null,
-          state: 'FINALIZADO', // ✅ Cambiar de BORRADOR a FINALIZADO
+          location: form.location?.id ? { id: form.location.id } : null,
+          state,
           police: form.police,
-          user_origin: form.user_origin ? form.user_origin : { id: 1 },
-          user_destination:
-            form.user_destination && form.user_destination.id ? form.user_destination : null,
+          is_editable: state === 'FINALIZADO' ? 'NO' : props.reception.is_editable,
+          user_origin: form.user_origin || { id: 1 },
+          user_destination: form.user_destination?.id ? form.user_destination : null,
         }
 
-        const response = await recepcionService.update(payload.id, payload)
-        console.log('✅ Recepción actualizada correctamente:', response.data)
+        const response = await recepcionService.update(form.id, receptionPayload)
 
-        // 2️⃣ Procesar sustancias (crear/actualizar según tengan id)
-        let createdSubstances = []
-        if (form.substances && form.substances.length > 0) {
-          console.log('💊 Actualizando/creando sustancias asociadas...')
-          const promises = form.substances.map((s) => {
-            const resolvedMeasurementType =
-              s.measurement_type ?? s.measurementType ?? s.unity ?? null
-            const substancePayload = {
-              ...(s.id ? { id: s.id } : {}),
-              nsubstance: s.nsubstance ?? null,
-              nue: s.nue,
-              description: s.description,
-              measurement_type: resolvedMeasurementType,
-              unit_quantity:
-                s.unit_quantity !== undefined && s.unit_quantity !== null
-                  ? Number(s.unit_quantity)
-                  : null,
-              weight: s.weight !== undefined && s.weight !== null ? Number(s.weight) : null,
-              weight_net:
-                s.weight_net !== undefined && s.weight_net !== null ? Number(s.weight_net) : null,
-              unity: s.unity ?? resolvedMeasurementType,
-              reception: form,
-              substanceType: s.substanceType ? { id: s.substanceType } : null,
-              packaging: s.packaging ? { id: s.packaging } : null,
-              commune: s.commune ? { id: s.commune } : null,
-            }
-            if (s.id) {
-              return substancesService.update(s.id, substancePayload)
-            } else {
-              return substancesService.create(substancePayload)
-            }
-          })
+        const substanceRequests = form.substances.map((substance) => {
+          const resolvedMeasurementType = getResolvedMeasurementType(substance)
+          const substancePayload = {
+            ...(substance.id ? { id: substance.id } : {}),
+            nsubstance: substance.nsubstance,
+            nue: substance.nue,
+            description: substance.description,
+            measurement_type: resolvedMeasurementType,
+            unit_quantity: isUnitMeasurementType(resolvedMeasurementType)
+              ? Number(substance.unit_quantity)
+              : null,
+            weight: Number(substance.weight),
+            weight_net:
+              substance.weight_net !== null && substance.weight_net !== undefined
+                ? Number(substance.weight_net)
+                : null,
+            unity: substance.unity ?? resolvedMeasurementType,
+            reception: response.data,
+            substanceType: substance.substanceType ? { id: substance.substanceType } : null,
+            packaging: substance.packaging ? { id: substance.packaging } : null,
+            commune: substance.commune ? { id: substance.commune } : null,
+          }
 
-          const results = await Promise.all(promises)
-          createdSubstances = results.map((result) => result.data)
-          console.log('✅ Sustancias actualizadas/creadas correctamente:', createdSubstances)
+          return substance.id
+            ? substancesService.update(substance.id, substancePayload)
+            : substancesService.create(substancePayload)
+        })
+
+        await Promise.all(substanceRequests)
+
+        if (deletedSubstanceIds.value.length > 0) {
+          await Promise.all(deletedSubstanceIds.value.map((id) => substancesService.delete(id)))
+          deletedSubstanceIds.value = []
         }
 
-        // 🆕 3️⃣ CREAR PRE-ANÁLISIS SOLO SI SE CAMBIA DE BORRADOR A FINALIZADO
-        if (props.reception.state === 'BORRADOR' && createdSubstances.length > 0) {
-          console.log('🔬 Creando registros de pre-análisis...')
-
-          const preAnalysisPromises = createdSubstances.map((substance) => {
-            const preAnalysisPayload = {
-              weight_sampled: substance.weight_net || 0,
-              observation: 'Pendiente de análisis',
-              reception: response.data,
-              substance: substance,
-              destination: { id: 1 },
-              methodDestruction: { id: 1 },
-              user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
-            }
-
-            console.log('📤 Creando pre-análisis:', preAnalysisPayload)
-            return preAnalysisService.create(preAnalysisPayload)
-          })
-
-          await Promise.all(preAnalysisPromises)
-          console.log('✅ Todos los registros de pre-análisis creados correctamente')
-        }
-
-        // 4️⃣ Emitir evento para recargar la lista principal
         emit('updated', response.data)
-
         toast.add({
           severity: 'success',
           summary: 'Éxito',
-          detail: 'Recepción completada y pre-análisis creados correctamente',
+          detail:
+            state === 'BORRADOR'
+              ? 'La recepción fue actualizada como borrador'
+              : 'La recepción fue completada correctamente',
           life: 3000,
         })
-
         closeDialog()
       } catch (error) {
-        console.error('❌ Error al guardar edición:', error)
+        console.error('Error actualizando la recepción:', error)
         toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'No se pudo completar la recepción',
+          detail:
+            state === 'BORRADOR'
+              ? 'No se pudo actualizar el borrador'
+              : 'No se pudo completar la recepción',
           life: 5000,
         })
       } finally {
@@ -1246,10 +1461,13 @@ export default {
       }
     }
 
+    const guardarBorrador = () => updateDraft('BORRADOR')
+    const completarRecepcion = () => updateDraft('FINALIZADO')
+
     const flagLabelEdit = computed(() => {
       if (form.state === 'BORRADOR') return '(Borrador)'
       if (form.state === 'FINALIZADO') return '(Finalizado)'
-      if (form.state === 'FINALIZADO') return '(Editado)'
+      if (form.state === 'EDITADO') return '(Editado)'
       return ''
     })
 
@@ -1269,6 +1487,9 @@ export default {
       form,
       editingSubstance,
       editingSubstanceIndex,
+      unityOptions,
+      isUnitMeasurement,
+      isEditingSubstanceValid,
       openDialog,
       closeDialog,
       buscarPolicia,
@@ -1276,6 +1497,7 @@ export default {
       applyEditingSubstance,
       startEditSubstance,
       removeSubstance,
+      duplicateSubstance,
       guardarEdicion,
       getSubstanceName,
       getPackagingName,
@@ -1284,6 +1506,7 @@ export default {
       editDescription,
       showValidationError,
       guardarBorrador,
+      completarRecepcion,
     }
   },
 }
