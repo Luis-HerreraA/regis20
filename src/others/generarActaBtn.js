@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { formatRut } from '@/others/verificationRut'
 
 const addDraftWatermark = (doc) => {
   const totalPages = doc.getNumberOfPages()
@@ -36,7 +37,7 @@ export const generarActaPDF = (form, substances, draftPreviewWindow = null) => {
   const doc = new jsPDF('p', 'mm', 'a4')
   const policeName =
     `${form.police?.firstName || ''} ${form.police?.firstLastName || ''}`.trim() || '—'
-  const policeRut = form.police?.rut || '—'
+  const policeRut = formatRut(form.police?.rut) || '—'
   const policeGrade = form.police?.grade?.name || '—'
   const policeInstitution = form.police?.institutionType?.institution?.name || '—'
   const policeCommune = form.police?.institutionType?.commune?.name || '—'
@@ -138,7 +139,7 @@ export const generarActaPDF = (form, substances, draftPreviewWindow = null) => {
 
   y += 5
   doc.text(`RUT: ${policeRut}`, 20, y)
-  doc.text(`RUT: ${form.user_destination.rut || ' '}`, 130, y)
+  doc.text(`RUT: ${formatRut(form.user_destination?.rut) || '—'}`, 130, y)
 
   y += 5
   doc.text(`${policeGrade}`, 20, y)

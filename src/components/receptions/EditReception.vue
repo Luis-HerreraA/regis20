@@ -251,7 +251,7 @@
           </div>
 
           <div class="field col-12 md:col-2">
-            <label>Peso Bruto</label>
+            <label>Peso Bruto {{ isUnitMeasurement ? '(opcional)' : '*' }}</label>
             <InputNumber
               v-model="editingSubstance.weight"
               :min="0"
@@ -262,7 +262,7 @@
           </div>
 
           <div class="field col-12 md:col-2">
-            <label>Peso Neto</label>
+            <label>Peso Neto {{ isUnitMeasurement ? '(opcional)' : '' }}</label>
             <InputNumber
               v-model="editingSubstance.weight_net"
               :min="0"
@@ -657,6 +657,8 @@ export default {
       isUnitMeasurementType(getResolvedMeasurementType(editingSubstance)),
     )
 
+    const hasValue = (value) => value !== null && value !== undefined && value !== ''
+
     const validateSubstanceData = (substance, index = null) => {
       const rowLabel = index !== null ? `sustancia N°${index + 1}` : 'sustancia'
 
@@ -693,7 +695,9 @@ export default {
         return false
       }
 
-      if (Number(substance.weight || 0) <= 0) {
+      const isUnit = isUnitMeasurementType(getResolvedMeasurementType(substance))
+
+      if (!isUnit && Number(substance.weight || 0) <= 0) {
         toast.add({
           severity: 'warn',
           summary: 'Peso inválido',
@@ -703,9 +707,29 @@ export default {
         return false
       }
 
+      if (isUnit && hasValue(substance.weight) && Number(substance.weight) <= 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Peso inválido',
+          detail: `Si informa el peso bruto, debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (hasValue(substance.weight_net) && Number(substance.weight_net) <= 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Peso inválido',
+          detail: `Si informa el peso neto, debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
       if (
-        substance.weight_net !== null &&
-        substance.weight_net !== undefined &&
+        hasValue(substance.weight) &&
+        hasValue(substance.weight_net) &&
         Number(substance.weight_net) > Number(substance.weight)
       ) {
         toast.add({
@@ -723,7 +747,16 @@ export default {
     const isEditingSubstanceValid = computed(() => {
       if (!editingSubstance.substanceType) return false
       if (!normalizeValue(getResolvedMeasurementType(editingSubstance))) return false
-      if (Number(editingSubstance.weight || 0) <= 0) return false
+      if (!isUnitMeasurement.value && Number(editingSubstance.weight || 0) <= 0) return false
+      if (hasValue(editingSubstance.weight) && Number(editingSubstance.weight) <= 0) return false
+      if (hasValue(editingSubstance.weight_net) && Number(editingSubstance.weight_net) <= 0)
+        return false
+      if (
+        hasValue(editingSubstance.weight) &&
+        hasValue(editingSubstance.weight_net) &&
+        Number(editingSubstance.weight_net) > Number(editingSubstance.weight)
+      )
+        return false
       return !isUnitMeasurement.value || Number(editingSubstance.unit_quantity || 0) > 0
     })
 
@@ -1410,7 +1443,7 @@ export default {
             unit_quantity: isUnitMeasurementType(resolvedMeasurementType)
               ? Number(substance.unit_quantity)
               : null,
-            weight: Number(substance.weight),
+            weight: hasValue(substance.weight) ? Number(substance.weight) : null,
             weight_net:
               substance.weight_net !== null && substance.weight_net !== undefined
                 ? Number(substance.weight_net)

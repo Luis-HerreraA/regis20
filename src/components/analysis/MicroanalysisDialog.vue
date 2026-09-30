@@ -9,8 +9,19 @@
     <div class="p-fluid">
       <div class="grid formgrid">
         <div class="col-12 md:col-6 field">
-          <label>Fecha</label>
-          <Calendar v-model="formData.date" dateFormat="dd/mm/yy" showIcon />
+          <label for="microanalysis-date">Fecha *</label>
+          <Calendar
+            inputId="microanalysis-date"
+            v-model="formData.date"
+            dateFormat="dd/mm/yy"
+            showIcon
+            required
+            :class="{ 'p-invalid': dateTouched && !hasValidDate }"
+            @blur="dateTouched = true"
+          />
+          <small v-if="dateTouched && !hasValidDate" class="p-error">
+            La fecha del microanálisis es obligatoria.
+          </small>
         </div>
 
         <div class="col-12 md:col-6 field">
@@ -97,7 +108,7 @@
 </template>
 
 <script>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Calendar from 'primevue/calendar'
@@ -133,6 +144,7 @@ export default {
     const isSaving = ref(false)
     const isPreviewing = ref(false)
     const existingMicroanalysisId = ref(null)
+    const dateTouched = ref(false)
 
     const statusOptions = [
       { label: 'Presentes', value: 'Presentes' },
@@ -155,11 +167,38 @@ export default {
       aumento: '',
     })
 
+    const isValidDate = (value) => {
+      const date = value instanceof Date ? value : new Date(value)
+      return !Number.isNaN(date.getTime())
+    }
+
+    const hasValidDate = computed(() => isValidDate(formData.value.date))
+
+    const parseDate = (value) => {
+      if (!value) return null
+      if (value instanceof Date) return isValidDate(value) ? value : null
+
+      const localDateMatch = String(value).match(/^(\d{2})-(\d{2})-(\d{4})$/)
+      if (localDateMatch) {
+        const [, day, month, year] = localDateMatch
+        const parsedDate = new Date(Number(year), Number(month) - 1, Number(day))
+        const matchesInput =
+          parsedDate.getFullYear() === Number(year) &&
+          parsedDate.getMonth() === Number(month) - 1 &&
+          parsedDate.getDate() === Number(day)
+        return isValidDate(parsedDate) && matchesInput ? parsedDate : null
+      }
+
+      const parsedDate = new Date(value)
+      return isValidDate(parsedDate) ? parsedDate : null
+    }
+
     // Cargar datos del microanálisis existente cuando se abre
     watch(
       () => props.visible,
       async (newVal) => {
         if (newVal && props.analysis?.id) {
+          dateTouched.value = false
           try {
             const { data } = await microanalysisService.getByAnalysisId(props.analysis.id)
             const microanalysis = data.content?.[0] || data?.[0]
@@ -171,7 +210,7 @@ export default {
                 stomas: microanalysis.stomas || null,
                 celepi: microanalysis.celepi || null,
                 observation: microanalysis.observation || '',
-                date: microanalysis.date ? new Date(microanalysis.date) : null,
+                date: parseDate(microanalysis.date),
                 aumento: microanalysis.aumento || '',
               }
             } else {
@@ -189,6 +228,7 @@ export default {
 
     const resetForm = () => {
       existingMicroanalysisId.value = null
+      dateTouched.value = false
       formData.value = {
         ttgland: null,
         ttnogland: null,
@@ -202,7 +242,7 @@ export default {
     }
 
     const formatDate = (date) => {
-      if (!date) return null
+      if (!isValidDate(date)) return null
       const d = new Date(date)
       const day = String(d.getDate()).padStart(2, '0')
       const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -210,11 +250,26 @@ export default {
       return `${day}-${month}-${year}`
     }
 
+    const validateRequiredDate = () => {
+      dateTouched.value = true
+      if (hasValidDate.value) return true
+
+      toast.add({
+        severity: 'warn',
+        summary: 'Fecha requerida',
+        detail: 'Debe ingresar la fecha del microanálisis.',
+        life: 3000,
+      })
+      return false
+    }
+
     const closeDialog = () => {
       emit('update:visible', false)
     }
 
     const previewReport = () => {
+      if (!validateRequiredDate()) return
+
       if (!props.analysis?.id) {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Análisis inválido', life: 3000 })
         return
@@ -285,6 +340,8 @@ export default {
     }
 
     const submit = async () => {
+      if (!validateRequiredDate()) return
+
       if (!props.analysis?.id) {
         toast.add({
           severity: 'error',
@@ -375,6 +432,8 @@ export default {
       isSaving,
       isPreviewing,
       existingMicroanalysisId,
+      dateTouched,
+      hasValidDate,
       statusOptions,
       resultOptions,
       closeDialog,

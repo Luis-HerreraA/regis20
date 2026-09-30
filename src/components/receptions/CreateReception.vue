@@ -197,7 +197,7 @@
             </div>
 
             <div class="field col-12 md:col-2">
-              <label>Peso Bruto</label>
+              <label>Peso Bruto {{ isUnitMeasurement ? '(opcional)' : '*' }}</label>
               <InputNumber
                 v-model="newSubstance.weight"
                 :min="0"
@@ -208,7 +208,7 @@
             </div>
 
             <div class="field col-12 md:col-2">
-              <label>Peso Neto</label>
+              <label>Peso Neto {{ isUnitMeasurement ? '(opcional)' : '' }}</label>
               <InputNumber
                 v-model="newSubstance.weight_net"
                 :min="0"
@@ -523,6 +523,8 @@ export default {
       return isUnitMeasurementType(getResolvedMeasurementType(newSubstance))
     })
 
+    const hasValue = (value) => value !== null && value !== undefined && value !== ''
+
     const isNewSubstanceValid = computed(() => {
       if (!newSubstance.substanceType) return false
 
@@ -535,7 +537,19 @@ export default {
         return false
       }
 
-      if (Number(newSubstance.weight || 0) <= 0) return false
+      if (!isUnitMeasurement.value && Number(newSubstance.weight || 0) <= 0) return false
+
+      if (hasValue(newSubstance.weight) && Number(newSubstance.weight) <= 0) return false
+
+      if (hasValue(newSubstance.weight_net) && Number(newSubstance.weight_net) <= 0) return false
+
+      if (
+        hasValue(newSubstance.weight) &&
+        hasValue(newSubstance.weight_net) &&
+        Number(newSubstance.weight_net) > Number(newSubstance.weight)
+      ) {
+        return false
+      }
 
       return !isUnitMeasurement.value || Number(newSubstance.unit_quantity || 0) > 0
     })
@@ -589,7 +603,7 @@ export default {
         }
       }
 
-      if (Number(substance.weight || 0) <= 0) {
+      if (!isUnit && Number(substance.weight || 0) <= 0) {
         toast.add({
           severity: 'warn',
           summary: 'Peso inválido',
@@ -599,9 +613,29 @@ export default {
         return false
       }
 
+      if (isUnit && hasValue(substance.weight) && Number(substance.weight) <= 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Peso inválido',
+          detail: `Si informa el peso bruto, debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
+      if (hasValue(substance.weight_net) && Number(substance.weight_net) <= 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Peso inválido',
+          detail: `Si informa el peso neto, debe ser mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
+      }
+
       if (
-        substance.weight_net !== null &&
-        substance.weight_net !== undefined &&
+        hasValue(substance.weight) &&
+        hasValue(substance.weight_net) &&
         Number(substance.weight_net) > Number(substance.weight)
       ) {
         toast.add({

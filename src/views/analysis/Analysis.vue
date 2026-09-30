@@ -48,6 +48,7 @@
                   dataKey="id"
                   :globalFilterFields="[
                     'id',
+                    'number_protocol',
                     'preAnalysis.reception.number',
                     'preAnalysis.substance.substanceType.name',
                     'result',
@@ -85,11 +86,17 @@
                     </template>
                   </Column>
                   <Column field="id" header="ID" />
+                  <Column field="number_protocol" header="N° Protocolo">
+                    <template #body="slotProps">
+                      {{ slotProps.data.number_protocol ?? '—' }}
+                    </template>
+                  </Column>
                   <Column field="preAnalysis.reception" header="N° Acta">
                     <template #body="slotProps">
                       #{{ slotProps.data.preAnalysis?.reception?.number || '—' }}
                     </template>
                   </Column>
+
                   <Column field="preAnalysis.substance" header="Sustancia">
                     <template #body="slotProps">
                       {{ getSubstanceName(slotProps.data.preAnalysis?.substance) }}
@@ -696,13 +703,12 @@ export default {
       )
     }
 
-    const getSubstanceTotalAvailable = (substance) => {
-      if (isUnitMeasurementType(substance?.measurement_type)) {
-        return Number(substance?.unit_quantity || 0)
-      }
+    const keepsUnitBalance = (substance, individualWeight = {}) =>
+      isUnitMeasurementType(substance?.measurement_type) &&
+      Boolean(individualWeight.keepUnitBalance)
 
-      return Number(substance?.weight_net || substance?.weight || 0)
-    }
+    const getSubstanceTotalAvailable = (substance) =>
+      Number(substance?.weight_net ?? substance?.weight ?? 0)
 
     const isRowSelectable = (data) => {
       console.log(data.state)
@@ -724,7 +730,17 @@ export default {
         )
           return false
         return selectedSubstances.value.every((substance) => {
-          const contr = bulkPreAnalysisData.value.individualWeights[substance.id]?.contra || 0
+          const individualWeight = bulkPreAnalysisData.value.individualWeights[substance.id] || {}
+          const contr = individualWeight.contra || 0
+          if (keepsUnitBalance(substance, individualWeight)) {
+            const sample = Number(bulkPreAnalysisData.value.autoWeightValue)
+            const totalAvailable = getSubstanceTotalAvailable(substance)
+            return (
+              sample > 0 &&
+              Number(contr) >= 0 &&
+              (totalAvailable <= 0 || sample + Number(contr) <= totalAvailable)
+            )
+          }
           const totalAvailable = getSubstanceTotalAvailable(substance)
           return Number(bulkPreAnalysisData.value.autoWeightValue) + Number(contr) <= totalAvailable
         })
@@ -736,8 +752,12 @@ export default {
           const contra = Number(obj.contra) || 0
           const totalAvailable = getSubstanceTotalAvailable(substance)
 
-          if (isUnitMeasurementType(substance?.measurement_type)) {
-            if (!Number.isInteger(sample) || !Number.isInteger(contra)) return false
+          if (keepsUnitBalance(substance, obj)) {
+            return (
+              sample > 0 &&
+              contra >= 0 &&
+              (totalAvailable <= 0 || sample + contra <= totalAvailable)
+            )
           }
 
           return sample > 0 && sample + contra <= totalAvailable
@@ -957,7 +977,13 @@ export default {
 
       // Inicializar pesos individuales (sample y contra)
       selectedSubstances.value.forEach((substance) => {
-        bulkPreAnalysisData.value.individualWeights[substance.id] = { sample: null, contra: null }
+        bulkPreAnalysisData.value.individualWeights[substance.id] = {
+          sample: null,
+          contra: null,
+          keepUnitBalance:
+            isUnitMeasurementType(substance?.measurement_type) &&
+            getSubstanceTotalAvailable(substance) <= 0,
+        }
       })
 
       showBulkPreAnalysisDialog.value = true
@@ -1015,19 +1041,14 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
+            const keepUnitBalance = keepsUnitBalance(substance, indiv)
             const totalAvailable = getSubstanceTotalAvailable(substance)
-            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
 
             if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
-            if (isUnitMeasurementType(substance?.measurement_type)) {
-              if (!Number.isInteger(Number(sampleWeight)) || !Number.isInteger(contraWeight)) {
-                throw new Error(
-                  'Para sustancias por unidades, muestra y contramuestra deben ser enteras',
-                )
-              }
-            }
-
-            if (sampleWeight + contraWeight > totalAvailable)
+            if (
+              (!keepUnitBalance || totalAvailable > 0) &&
+              sampleWeight + contraWeight > totalAvailable
+            )
               throw new Error('La suma de muestra y contramuestra excede el total disponible')
 
             // Crear pre-análisis
@@ -1066,18 +1087,12 @@ export default {
             // 3️⃣ Si hay contramuestra, crear registro de almacenamiento Y destruction detail
             if (contraWeight > 0) {
               try {
-                const isUnitMeasurement = String(substance?.measurement_type || '')
-                  .trim()
-                  .toLowerCase()
-                const usesUnits =
-                  isUnitMeasurement.includes('unidad') || isUnitMeasurement.includes('paquete')
-
                 const { data: createdStorage } = await storagesService.create({
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
-                  measurement_type: substance?.measurement_type || null,
-                  unit_quantity: usesUnits ? contraWeight : null,
+                  measurement_type: 'GRAMOS',
+                  unit_quantity: null,
                   description: formData.observation || '',
                   substance: substance,
                   storageLocation: { id: 1 },
@@ -1087,8 +1102,8 @@ export default {
                 const detailPayload = {
                   state: 'COMPLETADO',
                   weight: contraWeight,
-                  measurement_type: substance?.measurement_type || null,
-                  unit_quantity: usesUnits ? contraWeight : null,
+                  measurement_type: 'GRAMOS',
+                  unit_quantity: null,
                   destructionHeader: destructionHeader,
                   substance: substance,
                   storage: createdStorage,
