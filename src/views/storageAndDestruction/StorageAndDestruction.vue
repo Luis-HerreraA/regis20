@@ -134,7 +134,7 @@
                             {{ slotProps.data.date_destruction }}
                           </template>
                         </Column>
-                        <Column field="weight" header="Peso (gr)" />
+                        <Column field="weight" header="Cantidad total" />
                         <Column header="Método">
                           <template #body="slotProps">
                             {{ slotProps.data.methodDestruction?.name || '—' }}
@@ -589,8 +589,19 @@ export default {
     // Descargar reporte de destrucción método 1
     const downloadDestructionReportMethod1 = async (destruction) => {
       try {
+        if (!destructionDetails.value[destruction.id]) {
+          loadingDetails.value[destruction.id] = true
+          const { data } = await destructionDetailsService.getByHeaderId(destruction.id)
+          destructionDetails.value[destruction.id] = data.content || data || []
+          loadingDetails.value[destruction.id] = false
+        }
+
         // Generar el PDF con el formato del método 1
-        await generarActaDestruccionMetodo1PDF(destruction)
+        await generarActaDestruccionMetodo1PDF(
+          destruction,
+          {},
+          destructionDetails.value[destruction.id],
+        )
 
         toast.add({
           severity: 'success',

@@ -81,36 +81,23 @@
               <div class="text-sm">
                 <strong>{{ substance.substanceType?.name }}</strong>
               </div>
-              <div v-if="!keepsUnitBalance(substance)" class="text-xs text-500">
+              <div class="text-xs text-500">
                 Disponible para muestreo: {{ formatTotalAvailable(substance) }}
-                {{ getUnitLabel() }}
-              </div>
-              <div v-else class="text-xs text-500">
-                Muestreo informado en gramos, sin descontar unidades
-              </div>
-              <div v-if="isUnitMeasurement(substance)" class="text-xs text-500">
-                Recepción: {{ formatReceptionQuantity(substance) }} und
+                {{ getUnitLabel(substance) }}
               </div>
               <div
-                v-if="!hasSamplingWeight(substance) && !keepsUnitBalance(substance)"
-                class="text-xs text-red-500 mt-1"
+                v-if="isUnitMeasurement(substance) && getReferenceWeight(substance) !== null"
+                class="text-xs text-500"
               >
-                Debe registrar un peso para procesar esta sustancia.
+                Peso neto referencial: {{ getReferenceWeight(substance) }} g
               </div>
-              <div v-if="isUnitMeasurement(substance)" class="flex align-items-center gap-2 mt-2">
-                <Checkbox
-                  v-model="formData.individualWeights[substance.id].keepUnitBalance"
-                  :binary="true"
-                  :inputId="`keep-unit-balance-${substance.id}`"
-                />
-                <label :for="`keep-unit-balance-${substance.id}`" class="text-xs cursor-pointer">
-                  Muestrear en gramos sin descontar unidades
-                </label>
+              <div v-if="!hasAvailableBalance(substance)" class="text-xs text-red-500 mt-1">
+                Debe registrar una cantidad disponible para procesar esta sustancia.
               </div>
             </div>
 
             <div style="width: 120px">
-              <label class="text-xs">Muestra ({{ getUnitLabel() }})</label>
+              <label class="text-xs">Muestra ({{ getUnitLabel(substance) }})</label>
               <InputNumber
                 v-model="formData.individualWeights[substance.id].sample"
                 mode="decimal"
@@ -119,15 +106,15 @@
                 decimalSeparator="."
                 :useGrouping="false"
                 placeholder="Muestra"
-                :minFractionDigits="1"
-                :maxFractionDigits="2"
+                :minFractionDigits="isUnitMeasurement(substance) ? 0 : 1"
+                :maxFractionDigits="isUnitMeasurement(substance) ? 0 : 2"
                 :disabled="!canSample(substance)"
                 style="width: 120px"
               />
             </div>
 
             <div style="width: 140px">
-              <label class="text-xs">Contramuestra ({{ getUnitLabel() }})</label>
+              <label class="text-xs">Contramuestra ({{ getUnitLabel(substance) }})</label>
               <InputNumber
                 v-model="formData.individualWeights[substance.id].contra"
                 mode="decimal"
@@ -136,8 +123,8 @@
                 decimalSeparator="."
                 :useGrouping="false"
                 placeholder="Contramuestra"
-                :minFractionDigits="1"
-                :maxFractionDigits="2"
+                :minFractionDigits="isUnitMeasurement(substance) ? 0 : 1"
+                :maxFractionDigits="isUnitMeasurement(substance) ? 0 : 2"
                 :disabled="!canSample(substance)"
                 style="width: 120px"
               />
@@ -174,7 +161,6 @@ import Dropdown from 'primevue/dropdown'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import Chip from 'primevue/chip'
-import Checkbox from 'primevue/checkbox'
 import InputNumber from 'primevue/inputnumber'
 
 export default {
@@ -185,7 +171,6 @@ export default {
     Textarea,
     Button,
     Chip,
-    Checkbox,
     InputNumber,
   },
   props: {
@@ -237,30 +222,26 @@ export default {
     const isUnitMeasurement = (substance) => isUnitMeasurementType(substance?.measurement_type)
 
     const getTotalAvailable = (substance) =>
-      Number(substance?.weight_net ?? substance?.weight ?? 0)
+      isUnitMeasurement(substance)
+        ? Number(substance?.unit_quantity || 0)
+        : Number(substance?.weight_net ?? substance?.weight ?? 0)
 
-    const getUnitLabel = () => 'gr'
+    const getUnitLabel = (substance) => (isUnitMeasurement(substance) ? 'unidades' : 'g')
 
-    const hasSamplingWeight = (substance) => getTotalAvailable(substance) > 0
+    const hasAvailableBalance = (substance) => getTotalAvailable(substance) > 0
 
-    const keepsUnitBalance = (substance) =>
-      isUnitMeasurement(substance) &&
-      Boolean(formData.value.individualWeights[substance.id]?.keepUnitBalance)
+    const canSample = (substance) => hasAvailableBalance(substance)
 
-    const canSample = (substance) =>
-      hasSamplingWeight(substance) || keepsUnitBalance(substance)
+    const getSamplingMax = (substance) => getTotalAvailable(substance)
 
-    const getSamplingMax = (substance) =>
-      keepsUnitBalance(substance) && !hasSamplingWeight(substance)
-        ? undefined
-        : getTotalAvailable(substance)
-
-    const formatReceptionQuantity = (substance) =>
-      String(Math.trunc(Number(substance?.unit_quantity || 0)))
+    const getReferenceWeight = (substance) => {
+      const weight = substance?.weight_net ?? substance?.weight
+      return weight === null || weight === undefined || weight === '' ? null : Number(weight)
+    }
 
     const formatTotalAvailable = (substance) => {
       const total = getTotalAvailable(substance)
-      return total.toFixed(2)
+      return isUnitMeasurement(substance) ? String(Math.trunc(total)) : total.toFixed(2)
     }
 
     const isFormValid = computed(() => {
@@ -283,15 +264,11 @@ export default {
 
         const totalAvailable = getTotalAvailable(substance)
 
-        if (keepsUnitBalance(substance)) {
-          return (
-            sample > 0 &&
-            contra >= 0 &&
-            (totalAvailable <= 0 || sample + contra <= totalAvailable)
-          )
-        }
+        const amountsAreValid = sample > 0 && contra >= 0 && sample + contra <= totalAvailable
+        const unitsAreIntegers =
+          !isUnitMeasurement(substance) || (Number.isInteger(sample) && Number.isInteger(contra))
 
-        return sample > 0 && contra >= 0 && sample + contra <= totalAvailable
+        return amountsAreValid && unitsAreIntegers
       })
     })
 
@@ -316,7 +293,6 @@ export default {
               obj.contra === null || obj.contra === undefined || obj.contra === ''
                 ? null
                 : parseFloat(obj.contra),
-            keepUnitBalance: Boolean(obj.keepUnitBalance),
           }
         })
 
@@ -345,8 +321,6 @@ export default {
             formData.value.individualWeights[substance.id] = {
               sample: null,
               contra: null,
-              keepUnitBalance:
-                isUnitMeasurement(substance) && !hasSamplingWeight(substance),
             }
           })
         }
@@ -354,18 +328,17 @@ export default {
     )
 
     const computeRestante = (substance) => {
-      if (keepsUnitBalance(substance)) {
-        return `${formatReceptionQuantity(substance)} und (sin descuento)`
-      }
-
-      if (!hasSamplingWeight(substance)) return '—'
+      if (!hasAvailableBalance(substance)) return '—'
 
       const obj = formData.value.individualWeights[substance.id] || {}
       const sample = Number(obj.sample || 0)
       const contra = Number(obj.contra || 0)
       const restante = getTotalAvailable(substance) - sample - contra
 
-      return `${restante > 0 ? restante.toFixed(2) : '0.00'} gr`
+      const normalizedRestante = restante > 0 ? restante : 0
+      return isUnitMeasurement(substance)
+        ? `${Math.trunc(normalizedRestante)} unidades`
+        : `${normalizedRestante.toFixed(2)} g`
     }
 
     return {
@@ -376,11 +349,10 @@ export default {
       submitForm,
       computeRestante,
       isUnitMeasurement,
-      hasSamplingWeight,
-      keepsUnitBalance,
+      hasAvailableBalance,
       canSample,
       getSamplingMax,
-      formatReceptionQuantity,
+      getReferenceWeight,
       getTotalAvailable,
       getUnitLabel,
       formatTotalAvailable,

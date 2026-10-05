@@ -453,11 +453,12 @@ export default {
 
     // Computed para validar el formulario individual
     const isPreAnalysisFormValid = computed(() => {
+      const totalAvailable = getSubstanceTotalAvailable(selectedSubstance.value)
       return (
         preAnalysisData.value.destination &&
         preAnalysisData.value.weight_sampled &&
         preAnalysisData.value.weight_sampled > 0 &&
-        preAnalysisData.value.weight_sampled <= (selectedSubstance.value?.weight || 0)
+        preAnalysisData.value.weight_sampled <= totalAvailable
       )
     })
 
@@ -696,6 +697,9 @@ export default {
           reception: { id: selectedReception.value.id },
           destination: formData.destination,
           weight_sampled: formData.weight_sampled,
+          weightContra: 0,
+          weightDestruction:
+            getSubstanceTotalAvailable(selectedSubstance.value) - Number(formData.weight_sampled),
           methodDestruction: formData.methodDestruction,
           observation: formData.observation,
           user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -733,6 +737,7 @@ export default {
         // Actualizar estado de la sustancia
         await substancesService.update(selectedSubstance.value.id, {
           ...selectedSubstance.value,
+          packaging: { id: 13 },
           state: 'DERIVADO',
         })
 
@@ -811,9 +816,6 @@ export default {
         bulkPreAnalysisData.value.individualWeights[substance.id] = {
           sample: null,
           contra: null,
-          keepUnitBalance:
-            isUnitMeasurementType(substance?.measurement_type) &&
-            getSubstanceTotalAvailable(substance) <= 0,
         }
       })
 
@@ -831,12 +833,10 @@ export default {
       )
     }
 
-    const keepsUnitBalance = (substance, individualWeight = {}) =>
-      isUnitMeasurementType(substance?.measurement_type) &&
-      Boolean(individualWeight.keepUnitBalance)
-
     const getSubstanceTotalAvailable = (substance) =>
-      Number(substance?.weight_net ?? substance?.weight ?? 0)
+      isUnitMeasurementType(substance?.measurement_type)
+        ? Number(substance?.unit_quantity || 0)
+        : Number(substance?.weight_net ?? substance?.weight ?? 0)
 
     const closeBulkDialog = () => {
       showBulkPreAnalysisDialog.value = false
@@ -858,9 +858,6 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            if (keepsUnitBalance(substance, indiv)) {
-              return sum + Number(substance?.unit_quantity || 0)
-            }
             const totalAvailable = getSubstanceTotalAvailable(substance)
             const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
             return sum + (restante > 0 ? restante : 0)
@@ -892,18 +889,18 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const keepUnitBalance = keepsUnitBalance(substance, indiv)
+            const isUnitBalance = isUnitMeasurementType(substance?.measurement_type)
             const totalAvailable = getSubstanceTotalAvailable(substance)
-            const restante = keepUnitBalance
-              ? Number(substance?.unit_quantity || 0)
-              : totalAvailable - Number(sampleWeight || 0) - contraWeight
+            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
 
             if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
-            if (
-              (!keepUnitBalance || totalAvailable > 0) &&
-              sampleWeight + contraWeight > totalAvailable
-            )
+            if (Number(sampleWeight) + contraWeight > totalAvailable)
               throw new Error('La suma de muestra y contramuestra excede el total disponible')
+            if (
+              isUnitBalance &&
+              (!Number.isInteger(Number(sampleWeight)) || !Number.isInteger(contraWeight))
+            )
+              throw new Error('Las cantidades en unidades deben ser números enteros')
 
             // 1) Crear pre-análisis (va a análisis)
             const payloadPre = {
@@ -911,6 +908,8 @@ export default {
               reception: selectedReceptionForBulk.value,
               destination: formData.destination,
               weight_sampled: sampleWeight,
+              weightContra: contraWeight,
+              weightDestruction: restante,
               methodDestruction: formData.methodDestruction,
               observation: formData.observation,
               user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -939,21 +938,21 @@ export default {
             }
 
             // 2) Si hay contramuestra, crear registro en storage (almacenamiento)
-            let createdStorageId = null
             if (contraWeight > 0) {
               try {
                 // storagesService guarda el registro de almacenamiento
-                const { data: createdStorage } = await storagesService.create({
+                await storagesService.create({
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
-                  measurement_type: 'GRAMOS',
-                  unit_quantity: null,
+                  measurement_type: isUnitBalance
+                    ? substance?.measurement_type || 'UNIDADES'
+                    : 'GRAMOS',
+                  unit_quantity: isUnitBalance ? contraWeight : null,
                   description: '',
                   substance: substance,
                   storageLocation: { id: 1 },
                 })
-                createdStorageId = createdStorage.id
               } catch (storErr) {
                 console.warn('No se pudo crear registro de almacenamiento:', storErr)
               }
@@ -965,10 +964,10 @@ export default {
                 const destructionDetailPayload = {
                   state: 'PENDIENTE',
                   weight: restante,
-                  measurement_type: keepUnitBalance
+                  measurement_type: isUnitBalance
                     ? substance?.measurement_type || 'UNIDADES'
                     : 'GRAMOS',
-                  unit_quantity: keepUnitBalance ? restante : null,
+                  unit_quantity: isUnitBalance ? restante : null,
                   destructionHeader: destructionHeader,
                   substance: substance,
                 }
@@ -982,6 +981,7 @@ export default {
             // Actualizar estado de la sustancia
             const payloadSubstance = {
               ...substance,
+              packaging: { id: 13 },
               state: 'DERIVADO',
             }
             await substancesService.update(substance.id, payloadSubstance)

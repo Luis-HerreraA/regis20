@@ -1,6 +1,22 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+const isUnitMeasurement = (detail) => {
+  const measurementType = String(
+    detail?.measurement_type || detail?.substance?.measurement_type || '',
+  ).toLowerCase()
+  return measurementType.includes('unidad') || measurementType.includes('paquete')
+}
+
+const formatDetailAmount = (detail) => {
+  if (isUnitMeasurement(detail)) {
+    const amount = Number(detail?.unit_quantity ?? detail?.weight ?? 0)
+    return `${Math.trunc(amount)} unidades`
+  }
+
+  return `${Number(detail?.weight || 0).toFixed(2)} g`
+}
+
 export const generarActaDestruccionPDF = (destructionHeader, destructionDetails) => {
   const doc = new jsPDF('p', 'mm', 'a4')
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -51,12 +67,12 @@ export const generarActaDestruccionPDF = (destructionHeader, destructionDetails)
     detail.substance?.reception?.number || '—',
     detail.substance?.nue || '—',
     detail.substance?.substanceType?.name || '—',
-    detail.weight ? Number(detail.weight).toFixed(2) : '—',
+    formatDetailAmount(detail),
   ])
 
   autoTable(doc, {
     startY: yPos,
-    head: [['N°', 'N° Acta', 'NUE', 'Sustancia', 'Peso (gr)']],
+    head: [['N°', 'N° Acta', 'NUE', 'Sustancia', 'Cantidad']],
     body: tableData,
     styles: {
       fontSize: 8,

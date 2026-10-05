@@ -1,13 +1,16 @@
 <template>
-  <div class="card flex justify-center">
-    <Button
-      icon="pi pi-cog"
-      class="p-button-rounded p-button-success p-button-outlined"
+  <div :class="showTrigger ? 'card flex justify-center' : null">
+    <PrimeButton
+      v-if="showTrigger"
+      :icon="isEditing ? 'pi pi-pencil' : 'pi pi-cog'"
+      :class="[
+        'p-button-rounded p-button-outlined',
+        isEditing ? 'p-button-warning' : 'p-button-success',
+      ]"
       @click="openDialog"
-      v-tooltip.top="'Macroanalisis'"
+      v-tooltip.top="isEditing ? 'Editar macroanálisis' : 'Macroanálisis'"
     />
-
-    <Dialog
+    <PrimeDialog
       v-model:visible="visible"
       :style="{ width: '700px' }"
       modal
@@ -16,7 +19,9 @@
       @hide="handleClose"
     >
       <template #header>
-        <span class="text-xl font-semibold">Macroanalisis</span>
+        <span class="text-xl font-semibold">
+          {{ isEditing ? 'Editar macroanálisis' : 'Macroanálisis' }}
+        </span>
       </template>
 
       <div class="dialog-content">
@@ -76,7 +81,9 @@
         <hr class="my-3" />
 
         <!-- CAMPOS EDITABLES -->
-        <h3 class="font-semibold mb-2">Completar análisis</h3>
+        <h3 class="font-semibold mb-2">
+          {{ isEditing ? 'Modificar análisis' : 'Completar análisis' }}
+        </h3>
 
         <div class="grid formgrid">
           <div class="col-12 md:col-6 field">
@@ -144,6 +151,23 @@
               placeholder="Seleccione resultado"
             />
           </div>
+
+          <div v-if="isEditing" class="col-12 field">
+            <label for="macro-change-reason">Motivo de la modificación *</label>
+            <PrimeTextarea
+              id="macro-change-reason"
+              v-model="changeReason"
+              rows="3"
+              maxlength="500"
+              autoResize
+              placeholder="Describa brevemente por qué se modifica el macroanálisis"
+              :class="{ 'p-invalid': reasonTouched && !changeReason.trim() }"
+              @blur="reasonTouched = true"
+            />
+            <small v-if="reasonTouched && !changeReason.trim()" class="p-error">
+              El motivo de la modificación es obligatorio.
+            </small>
+          </div>
         </div>
 
         <hr class="my-3" />
@@ -196,7 +220,7 @@
       </div>
 
       <template #footer>
-        <Button
+        <PrimeButton
           label="Previsualizar"
           icon="pi pi-eye"
           severity="info"
@@ -205,45 +229,69 @@
           :loading="isPreviewing"
           :disabled="isSaving"
         />
-        <Button
-          label="Guardar"
+        <PrimeButton
+          :label="isEditing ? 'Actualizar' : 'Guardar'"
           severity="success"
           @click="submit"
           :loading="isSaving"
           :disabled="isSaving"
         />
-        <Button label="Cerrar" severity="secondary" @click="closeDialog" :disabled="isSaving" />
+        <PrimeButton
+          label="Cerrar"
+          severity="secondary"
+          @click="closeDialog"
+          :disabled="isSaving"
+        />
       </template>
-    </Dialog>
+    </PrimeDialog>
+
   </div>
 </template>
 
 <script>
-import { ref } from 'vue'
-import Button from 'primevue/button'
-import Dialog from 'primevue/dialog'
+import { computed, ref } from 'vue'
+import PrimeButton from 'primevue/button'
+import PrimeDialog from 'primevue/dialog'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
+import PrimeTextarea from 'primevue/textarea'
 import Dropdown from 'primevue/dropdown'
 import Checkbox from 'primevue/checkbox'
 import { useToast } from 'primevue/usetoast'
+import analysisHistoryService from '@/services/analysisHistoryService.js'
 import analysisService from '@/services/analysisService'
 import { generarReporteAnalisisPDF } from '@/others/generarReporteAnalisis.js'
+import { getHistoryChanges } from '@/utils/analysisHistory.js'
 
 export default {
   name: 'CompleteAnalysis',
-  components: { Button, Dialog, Card, Tag, InputText, Textarea, Dropdown, Checkbox },
+  components: {
+    PrimeButton,
+    PrimeDialog,
+    Card,
+    Tag,
+    InputText,
+    PrimeTextarea,
+    Dropdown,
+    Checkbox,
+  },
   props: {
     analysis: { type: Object, default: null },
+    showTrigger: { type: Boolean, default: true },
   },
   emits: ['processed'],
-  setup(props, { emit }) {
+  setup(props, { emit, expose }) {
     const visible = ref(false)
+    const isEditing = computed(
+      () => String(props.analysis?.state || '').toUpperCase() !== 'PENDIENTE',
+    )
 
     // Form con valores editables
     const form = ref({})
+    const originalAnalysis = ref(null)
+    const changeReason = ref('')
+    const reasonTouched = ref(false)
 
     // Opciones para el resultado
     const resultOptions = ref([
@@ -277,13 +325,36 @@ export default {
       { label: 'Fragmentada', value: 'Fragmentada' },
       { label: 'Entera', value: 'Entera' },
       { label: 'Plantas pequeñas', value: 'Plantas pequeñas' },
+      {
+        label: 'Semillas de forma ovoide, testa dura y resistente',
+        value: 'Semillas de forma ovoide, testa dura y resistente',
+      },
     ])
 
     // Copia profunda del analysis cuando se abre el modal
     const openDialog = () => {
+      originalAnalysis.value = JSON.parse(JSON.stringify(props.analysis || {}))
       form.value = JSON.parse(JSON.stringify(props.analysis || {}))
+      changeReason.value = ''
+      reasonTouched.value = false
+
+      // El resultado se guarda como POSITIVO/NEGATIVO, pero el selector usa una descripción.
+      const savedMacroResult = String(form.value.macro || '').toUpperCase()
+      if (savedMacroResult === 'POSITIVO') {
+        form.value.result = 'Característico de Cannabis'
+      } else if (savedMacroResult === 'NEGATIVO') {
+        form.value.result = 'No Característico de Cannabis'
+      }
+
+      if (form.value.date_analysis) {
+        const parsedDate = new Date(form.value.date_analysis)
+        if (!Number.isNaN(parsedDate.getTime())) form.value.date_analysis = parsedDate
+      }
+
       visible.value = true
     }
+
+    expose({ openDialog })
 
     const closeDialog = () => {
       visible.value = false
@@ -296,6 +367,27 @@ export default {
     const toast = useToast()
     const isSaving = ref(false)
     const isPreviewing = ref(false)
+
+    const normalizeDateForApi = (value) => {
+      if (!(value instanceof Date)) return value || null
+      return Number.isNaN(value.getTime()) ? null : value.toISOString()
+    }
+
+    const buildMacroSnapshot = (analysis) => ({
+      number_protocol: analysis?.number_protocol ?? null,
+      date_analysis: normalizeDateForApi(analysis?.date_analysis),
+      gradeFrac: analysis?.gradeFrac ?? null,
+      gradeHum: analysis?.gradeHum ?? null,
+      color: analysis?.color ?? null,
+      smell: analysis?.smell ?? null,
+      macro: analysis?.macro ?? null,
+      has_palmed_leaves: Boolean(analysis?.has_palmed_leaves),
+      has_leaf_remains: Boolean(analysis?.has_leaf_remains),
+      has_stems: Boolean(analysis?.has_stems),
+      has_roots: Boolean(analysis?.has_roots),
+      has_seeds: Boolean(analysis?.has_seeds),
+      has_inflorescences: Boolean(analysis?.has_inflorescences),
+    })
 
     const previewReport = () => {
       if (!form.value?.id) {
@@ -363,7 +455,17 @@ export default {
         return
       }
 
-      isSaving.value = true
+      if (isEditing.value && !changeReason.value.trim()) {
+        reasonTouched.value = true
+        toast.add({
+          severity: 'warn',
+          summary: 'Motivo requerido',
+          detail: 'Debe indicar el motivo de la modificación.',
+          life: 3000,
+        })
+        return
+      }
+
       try {
         // Convertir resultado mostrado a Positivo/Negativo para guardar en macro
         let savedResult = 'NEGATIVO'
@@ -371,19 +473,59 @@ export default {
           savedResult = 'POSITIVO'
         }
 
-        // Cambiar estado a MACRO_COMPLETADO después del macroanalisis
+        // Al editar se conserva la etapa actual para no invalidar los análisis posteriores.
         const payload = {
           ...form.value,
-          state: 'MACRO_COMPLETADO',
+          date_analysis: normalizeDateForApi(form.value.date_analysis),
+          state: isEditing.value ? props.analysis.state : 'MACRO_COMPLETADO',
           macro: savedResult,
-          result: null,
+          result: isEditing.value ? (props.analysis.result ?? null) : null,
           user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
         }
+
+        const oldData = buildMacroSnapshot(originalAnalysis.value)
+        const newData = buildMacroSnapshot(payload)
+
+        if (isEditing.value && getHistoryChanges({ oldData, newData }).length === 0) {
+          toast.add({
+            severity: 'info',
+            summary: 'Sin cambios',
+            detail: 'No se detectaron modificaciones para guardar.',
+            life: 3000,
+          })
+          return
+        }
+
+        isSaving.value = true
         const { data } = await analysisService.update(form.value.id, payload)
+
+        if (isEditing.value) {
+          try {
+            await analysisHistoryService.create({
+              analysis: data || payload,
+              oldData,
+              newData: buildMacroSnapshot(data || payload),
+              changedByUser: { id: parseInt(localStorage.getItem('user_id')) || 1 },
+              changeReason: changeReason.value.trim(),
+            })
+          } catch (historyError) {
+            console.error('Error registrando historial de macroanálisis:', historyError)
+            toast.add({
+              severity: 'warn',
+              summary: 'Historial no registrado',
+              detail:
+                'El macroanálisis fue actualizado, pero no se pudo registrar su historial.',
+              life: 5000,
+            })
+          }
+        }
+
         toast.add({
           severity: 'success',
-          summary: 'Guardado',
-          detail: 'Macroanalisis completado. Proceda con el Microanalisis',
+          summary: isEditing.value ? 'Actualizado' : 'Guardado',
+          detail: isEditing.value
+            ? 'Macroanálisis actualizado correctamente'
+            : 'Macroanálisis completado. Proceda con el Microanálisis',
           life: 3000,
         })
         emit('processed', data || form.value)
@@ -432,14 +574,6 @@ export default {
       return 'Peso muestreado (g)'
     }
 
-    const editor = ref(null)
-
-    // cuando se abre el diálogo, no necesita inicializar editor
-    const openDialogOrig = openDialog
-    const openDialogWrap = () => {
-      openDialogOrig()
-    }
-
     return {
       visible,
       form,
@@ -448,7 +582,7 @@ export default {
       smellOptions,
       gradeHumOptions,
       gradeFracOptions,
-      openDialog: openDialogWrap,
+      openDialog,
       closeDialog,
       handleClose,
       submit,
@@ -457,6 +591,9 @@ export default {
       isSaving,
       isPreviewing,
       previewReport,
+      isEditing,
+      changeReason,
+      reasonTouched,
     }
   },
 }

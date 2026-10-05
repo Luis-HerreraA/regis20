@@ -89,7 +89,7 @@ export const generarActaPDF = async (form) => {
   })
 
   const columns = [
-    { header: 'Muestra Nº', dataKey: 'n' },
+    { header: 'Sustancia Nº', dataKey: 'n' },
     { header: 'Presunto', dataKey: 'presunto' },
     { header: 'NUE', dataKey: 'nue' },
     { header: 'Unidad de Medición', dataKey: 'measurement_type' },
@@ -120,10 +120,15 @@ export const generarActaPDF = async (form) => {
     descripcion: s.description || '—',
   }))
 
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text(`N° Informe Oficial: ${form.nparte || '—'}`, 195, 58, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+
   autoTable(doc, {
     head: [columns.map((c) => c.header)],
     body: data.map((d) => columns.map((column) => d[column.dataKey])),
-    startY: 60,
+    startY: 63,
     styles: {
       fontSize: 8,
       cellPadding: 2,

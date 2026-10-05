@@ -1,12 +1,16 @@
 <template>
-  <Dialog
+  <PrimeDialog
     :visible="visible"
     modal
-    header="Microanálisis"
+    :header="isEditing ? 'Editar microanálisis' : 'Microanálisis'"
     :style="{ width: '700px' }"
     @update:visible="closeDialog"
   >
     <div class="p-fluid">
+      <div v-if="loadError" class="load-error">
+        No se pudo recuperar el microanálisis existente. Cierre el formulario e intente nuevamente.
+      </div>
+
       <div class="grid formgrid">
         <div class="col-12 md:col-6 field">
           <label for="microanalysis-date">Fecha *</label>
@@ -82,50 +86,77 @@
             placeholder="Seleccionar resultado"
           />
         </div>
+
+        <div v-if="isEditing" class="col-12 field">
+          <label for="micro-change-reason">Motivo de la modificación *</label>
+          <PrimeTextarea
+            id="micro-change-reason"
+            v-model="changeReason"
+            rows="3"
+            maxlength="500"
+            autoResize
+            placeholder="Describa brevemente por qué se modifica el microanálisis"
+            :class="{ 'p-invalid': reasonTouched && !changeReason.trim() }"
+            @blur="reasonTouched = true"
+          />
+          <small v-if="reasonTouched && !changeReason.trim()" class="p-error">
+            El motivo de la modificación es obligatorio.
+          </small>
+        </div>
       </div>
     </div>
 
     <template #footer>
-      <Button label="Cancelar" severity="secondary" @click="closeDialog" :disabled="isSaving" />
-      <Button
+      <PrimeButton
+        label="Cancelar"
+        severity="secondary"
+        @click="closeDialog"
+        :disabled="isSaving"
+      />
+      <PrimeButton
         label="Previsualizar"
         icon="pi pi-eye"
         severity="info"
         outlined
         @click="previewReport"
         :loading="isPreviewing"
-        :disabled="isSaving"
+        :disabled="isSaving || isLoadingData || loadError"
       />
-      <Button
-        label="Guardar"
+      <PrimeButton
+        :label="isEditing ? 'Actualizar' : 'Guardar'"
         severity="success"
         @click="submit"
-        :loading="isSaving"
-        :disabled="isSaving"
+        :loading="isSaving || isLoadingData"
+        :disabled="isSaving || isLoadingData || loadError"
       />
     </template>
-  </Dialog>
+  </PrimeDialog>
+
 </template>
 
 <script>
 import { computed, ref, watch } from 'vue'
-import Dialog from 'primevue/dialog'
+import PrimeDialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Calendar from 'primevue/calendar'
-import Button from 'primevue/button'
+import PrimeButton from 'primevue/button'
+import PrimeTextarea from 'primevue/textarea'
 import Dropdown from 'primevue/dropdown'
 import { useToast } from 'primevue/usetoast'
 import microanalysisService from '@/services/microanalysisService.js'
+import microanalysisHistoryService from '@/services/microanalysisHistoryService.js'
 import analysisService from '@/services/analysisService.js'
 import { generarReporteMicroanalisisPDF } from '@/others/generarReporteMicroanalisis.js'
+import { getHistoryChanges } from '@/utils/analysisHistory.js'
 
 export default {
   name: 'MicroanalysisDialog',
   components: {
-    Dialog,
+    PrimeDialog,
     InputText,
     Calendar,
-    Button,
+    PrimeButton,
+    PrimeTextarea,
     Dropdown,
   },
   props: {
@@ -143,8 +174,20 @@ export default {
     const toast = useToast()
     const isSaving = ref(false)
     const isPreviewing = ref(false)
+    const isLoadingData = ref(false)
+    const loadError = ref(false)
     const existingMicroanalysisId = ref(null)
+    const originalMicroanalysis = ref(null)
     const dateTouched = ref(false)
+    const changeReason = ref('')
+    const reasonTouched = ref(false)
+    const isEditing = computed(() => {
+      const state = String(props.analysis?.state || '').toUpperCase()
+      return (
+        Boolean(existingMicroanalysisId.value) ||
+        ['MICRO_COMPLETADO', 'COMPLETADO', 'COMPLETADO_RESERVADO'].includes(state)
+      )
+    })
 
     const statusOptions = [
       { label: 'Presentes', value: 'Presentes' },
@@ -198,12 +241,19 @@ export default {
       () => props.visible,
       async (newVal) => {
         if (newVal && props.analysis?.id) {
-          dateTouched.value = false
+          const analysisId = props.analysis.id
+          resetForm()
+          loadError.value = false
+          isLoadingData.value = true
+
           try {
-            const { data } = await microanalysisService.getByAnalysisId(props.analysis.id)
+            const { data } = await microanalysisService.getByAnalysisId(analysisId)
+            if (!props.visible || props.analysis?.id !== analysisId) return
+
             const microanalysis = data.content?.[0] || data?.[0]
             if (microanalysis) {
               existingMicroanalysisId.value = microanalysis.id
+              originalMicroanalysis.value = JSON.parse(JSON.stringify(microanalysis))
               formData.value = {
                 ttgland: microanalysis.ttgland || null,
                 ttnogland: microanalysis.ttnogland || null,
@@ -216,11 +266,22 @@ export default {
             } else {
               existingMicroanalysisId.value = null
               resetForm()
+              loadError.value = isEditing.value
             }
           } catch (error) {
+            if (!props.visible || props.analysis?.id !== analysisId) return
+
             console.error('Error cargando microanálisis:', error)
-            existingMicroanalysisId.value = null
             resetForm()
+            loadError.value = true
+            toast.add({
+              severity: 'error',
+              summary: 'Error de carga',
+              detail: 'No se pudo recuperar el microanálisis existente.',
+              life: 4000,
+            })
+          } finally {
+            if (props.analysis?.id === analysisId) isLoadingData.value = false
           }
         }
       },
@@ -228,7 +289,10 @@ export default {
 
     const resetForm = () => {
       existingMicroanalysisId.value = null
+      originalMicroanalysis.value = null
       dateTouched.value = false
+      changeReason.value = ''
+      reasonTouched.value = false
       formData.value = {
         ttgland: null,
         ttnogland: null,
@@ -249,6 +313,17 @@ export default {
       const year = d.getFullYear()
       return `${day}-${month}-${year}`
     }
+
+    const buildMicroanalysisSnapshot = (microanalysis) => ({
+      ttgland: microanalysis?.ttgland ?? null,
+      ttnogland: microanalysis?.ttnogland ?? null,
+      stomas: microanalysis?.stomas ?? null,
+      celepi: microanalysis?.celepi ?? null,
+      observation: microanalysis?.observation ?? null,
+      conclution: microanalysis?.conclution ?? null,
+      date: microanalysis?.date ?? null,
+      aumento: microanalysis?.aumento ?? null,
+    })
 
     const validateRequiredDate = () => {
       dateTouched.value = true
@@ -352,8 +427,28 @@ export default {
         return
       }
 
-      isSaving.value = true
-      let conclution =
+      if (isEditing.value && !existingMicroanalysisId.value) {
+        toast.add({
+          severity: 'error',
+          summary: 'Edición no disponible',
+          detail: 'No se identificó el microanálisis existente. Recargue e intente nuevamente.',
+          life: 4500,
+        })
+        return
+      }
+
+      if (isEditing.value && !changeReason.value.trim()) {
+        reasonTouched.value = true
+        toast.add({
+          severity: 'warn',
+          summary: 'Motivo requerido',
+          detail: 'Debe indicar el motivo de la modificación.',
+          life: 3000,
+        })
+        return
+      }
+
+      const conclution =
         formData.value.observation === 'Característico de Cannabis'
           ? 'Se identifican estructuras compatibles con especie vegetal del género Cannabis'
           : 'No se identifican estructuras compatibles con especie vegetal del género Cannabis'
@@ -367,31 +462,34 @@ export default {
           conclution: conclution || null,
           date: formData.value.date ? formatDate(formData.value.date) : null,
           aumento: formData.value.aumento || null,
+          celresi: originalMicroanalysis.value?.celresi ?? null,
+          cris: originalMicroanalysis.value?.cris ?? null,
           analysis: props.analysis,
           user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
         }
 
-        console.log('📤 Enviando payload:', payload)
+        const oldData = buildMicroanalysisSnapshot(originalMicroanalysis.value)
+        const newData = buildMicroanalysisSnapshot(payload)
+
+        if (isEditing.value && getHistoryChanges({ oldData, newData }).length === 0) {
+          toast.add({
+            severity: 'info',
+            summary: 'Sin cambios',
+            detail: 'No se detectaron modificaciones para guardar.',
+            life: 3000,
+          })
+          return
+        }
+
+        isSaving.value = true
+        let savedMicroanalysis
 
         if (existingMicroanalysisId.value) {
-          // Actualizar existente
-          await microanalysisService.update(existingMicroanalysisId.value, payload)
-          toast.add({
-            severity: 'success',
-            summary: 'Actualizado',
-            detail: 'Microanálisis actualizado correctamente',
-            life: 3000,
-          })
+          const { data } = await microanalysisService.update(existingMicroanalysisId.value, payload)
+          savedMicroanalysis = data || { ...payload, id: existingMicroanalysisId.value }
         } else {
-          // Crear nuevo
-          console.log('Creando nuevo microanálisis', payload)
-          await microanalysisService.create(payload)
-          toast.add({
-            severity: 'success',
-            summary: 'Guardado',
-            detail: 'Microanálisis guardado. Proceda con Examen Químico',
-            life: 3000,
-          })
+          const { data } = await microanalysisService.create(payload)
+          savedMicroanalysis = data || payload
         }
 
         // Convertir resultado mostrado a Positivo/Negativo para guardar en micro
@@ -400,17 +498,61 @@ export default {
           savedResult = 'POSITIVO'
         }
 
-        // Actualizar estado del análisis a MICRO_COMPLETADO y guardar resultado en micro
+        // Al editar se conserva la etapa actual para no invalidar el examen químico.
+        let updatedAnalysis = props.analysis
         try {
-          await analysisService.update(props.analysis.id, {
+          const currentState = String(props.analysis.state || '').toUpperCase()
+          const nextState =
+            currentState !== 'MACRO_COMPLETADO' ? props.analysis.state : 'MICRO_COMPLETADO'
+
+          const { data } = await analysisService.update(props.analysis.id, {
             ...props.analysis,
-            state: 'MICRO_COMPLETADO',
+            state: nextState,
             micro: savedResult,
             user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
           })
+          updatedAnalysis = data || updatedAnalysis
         } catch (stateErr) {
           console.warn('No se pudo actualizar el estado del análisis:', stateErr)
+          toast.add({
+            severity: 'warn',
+            summary: 'Actualización parcial',
+            detail:
+              'El microanálisis fue guardado, pero no se pudo actualizar su resultado general.',
+            life: 5000,
+          })
         }
+
+        if (isEditing.value) {
+          try {
+            await microanalysisHistoryService.create({
+              microanalysis: savedMicroanalysis,
+              analysis: updatedAnalysis,
+              oldData,
+              newData: buildMicroanalysisSnapshot(savedMicroanalysis),
+              changedByUser: { id: parseInt(localStorage.getItem('user_id')) || 1 },
+              changeReason: changeReason.value.trim(),
+            })
+          } catch (historyError) {
+            console.error('Error registrando historial de microanálisis:', historyError)
+            toast.add({
+              severity: 'warn',
+              summary: 'Historial no registrado',
+              detail:
+                'El microanálisis fue actualizado, pero no se pudo registrar su historial.',
+              life: 5000,
+            })
+          }
+        }
+
+        toast.add({
+          severity: 'success',
+          summary: isEditing.value ? 'Actualizado' : 'Guardado',
+          detail: isEditing.value
+            ? 'Microanálisis actualizado correctamente'
+            : 'Microanálisis guardado. Proceda con Examen Químico',
+          life: 3000,
+        })
 
         emit('saved')
         closeDialog()
@@ -431,7 +573,12 @@ export default {
       formData,
       isSaving,
       isPreviewing,
+      isLoadingData,
+      loadError,
       existingMicroanalysisId,
+      isEditing,
+      changeReason,
+      reasonTouched,
       dateTouched,
       hasValidDate,
       statusOptions,
@@ -456,5 +603,14 @@ export default {
   font-weight: 500;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
+}
+
+.load-error {
+  background: #fff3f3;
+  border: 1px solid #f5b7b1;
+  border-radius: 6px;
+  color: #b42318;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
 }
 </style>

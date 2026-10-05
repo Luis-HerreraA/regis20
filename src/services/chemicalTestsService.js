@@ -1,4 +1,5 @@
-import axiosClient from './axiosClient'
+import axiosClient from './axiosClient.js'
+import { filterByAnalysisId } from '../utils/apiResponse.js'
 
 export default {
   // ✅ Obtener todos los exámenes químicos
@@ -11,9 +12,15 @@ export default {
     return axiosClient.get(`/api/v1/chemical_tests/${id}`)
   },
 
-  // ✅ Obtener exámenes químicos por ID de análisis
-  getByAnalysisId(analysisId) {
-    return axiosClient.get(`/api/v1/chemical_tests/by-analysis/${analysisId}`)
+  // El API no expone una ruta by-analysis para chemical_tests.
+  // Se consulta la colección válida y se conserva la interfaz esperada por el formulario.
+  async getByAnalysisId(analysisId) {
+    const response = await axiosClient.get('/api/v1/chemical_tests')
+
+    return {
+      ...response,
+      data: filterByAnalysisId(response.data, analysisId),
+    }
   },
 
   // ✅ Crear examen químico

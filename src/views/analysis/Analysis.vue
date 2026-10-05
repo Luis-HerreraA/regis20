@@ -49,6 +49,7 @@
                   :globalFilterFields="[
                     'id',
                     'number_protocol',
+                    'preAnalysis.substance.nsubstance',
                     'preAnalysis.reception.number',
                     'preAnalysis.substance.substanceType.name',
                     'result',
@@ -91,6 +92,11 @@
                       {{ slotProps.data.number_protocol ?? '—' }}
                     </template>
                   </Column>
+                  <Column field="preAnalysis.substance.nsubstance" header="N° Sustancia">
+                    <template #body="slotProps">
+                      {{ slotProps.data.preAnalysis?.substance?.nsubstance ?? '—' }}
+                    </template>
+                  </Column>
                   <Column field="preAnalysis.reception" header="N° Acta">
                     <template #body="slotProps">
                       #{{ slotProps.data.preAnalysis?.reception?.number || '—' }}
@@ -131,88 +137,27 @@
                   </Column>
                   <Column header="Acciones">
                     <template #body="slotProps">
-                      <div class="flex align-items-center gap-2">
+                      <div class="analysis-actions">
                         <Button
-                          v-if="tab.key === 'isp'"
-                          icon="pi pi-paperclip"
-                          class="p-button-rounded p-button-info p-button-outlined"
-                          @click="openAnalysisDocumentDialog(slotProps.data)"
-                          v-tooltip.top="'Adjuntar documentos'"
-                        />
-
-                        <!-- Si el estado es RESERVADO, mostrar botones "Imprimir Reservado ISP" y "Imprimir Reservado Fiscalía" -->
-                        <Button
-                          v-if="slotProps.data.state === 'RESERVADO'"
-                          icon="pi pi-print"
-                          class="p-button-rounded p-button-info p-button-outlined"
-                          @click="printReserved(slotProps.data)"
-                          v-tooltip.top="'Imprimir Reservado ISP'"
+                          v-if="getPrimaryAnalysisAction(slotProps.data, tab.key)"
+                          :label="getPrimaryAnalysisAction(slotProps.data, tab.key).label"
+                          :icon="getPrimaryAnalysisAction(slotProps.data, tab.key).icon"
+                          :severity="getPrimaryAnalysisAction(slotProps.data, tab.key).severity"
+                          size="small"
+                          class="primary-analysis-action"
+                          @click="runPrimaryAnalysisAction(slotProps.data, tab.key)"
                         />
                         <Button
-                          v-if="slotProps.data.state === 'RESERVADO'"
-                          icon="pi pi-file-pdf"
-                          class="p-button-rounded p-button-success p-button-outlined"
-                          @click="printReservedFiscalia(slotProps.data)"
-                          v-tooltip.top="'Imprimir Reservado Fiscalía'"
+                          v-if="hasMoreAnalysisActions(slotProps.data, tab.key)"
+                          icon="pi pi-ellipsis-v"
+                          severity="secondary"
+                          text
+                          rounded
+                          size="small"
+                          aria-label="Más acciones"
+                          @click="openAnalysisActionsMenu($event, slotProps.data, tab.key)"
+                          v-tooltip.top="'Más acciones'"
                         />
-
-                        <!-- Si el destino ES 1 (Interior), mostrar los botones de análisis -->
-                        <template v-else-if="slotProps.data.preAnalysis?.destination?.id === 1">
-                          <!-- Macroanalisis: solo aparece en estado PENDIENTE -->
-                          <CompleteAnalysis
-                            v-if="slotProps.data.state === 'PENDIENTE'"
-                            :analysis="slotProps.data"
-                            @processed="fetchAnalyses"
-                          />
-
-                          <!-- Microanalisis: aparece en estado MACRO_COMPLETADO -->
-                          <Button
-                            v-if="slotProps.data.state === 'MACRO_COMPLETADO'"
-                            icon="pi pi-search"
-                            class="p-button-rounded p-button-info p-button-outlined"
-                            @click="openMicroanalysisDialog(slotProps.data)"
-                            v-tooltip.top="'Microanálisis'"
-                          />
-
-                          <!-- Imprimir Microanálisis: aparece si hay datos de micro -->
-                          <Button
-                            v-if="slotProps.data.micro"
-                            icon="pi pi-file-pdf"
-                            class="p-button-rounded p-button-secondary p-button-outlined"
-                            @click="printMicroanalysis(slotProps.data)"
-                            v-tooltip.top="'Imprimir Microanálisis'"
-                          />
-
-                          <!-- Examen Quimico: aparece en estado MICRO_COMPLETADO -->
-                          <Button
-                            v-if="slotProps.data.state === 'MICRO_COMPLETADO'"
-                            icon="pi pi-file-edit"
-                            class="p-button-rounded p-button-warning p-button-outlined"
-                            @click="openChemicalTestDialog(slotProps.data)"
-                            v-tooltip.top="'Examen Químico'"
-                          />
-
-                          <!-- Generar Reporte: aparece en estado COMPLETADO y COMPLETADO_RESERVADO -->
-                          <Button
-                            v-if="
-                              slotProps.data.state === 'COMPLETADO' ||
-                              slotProps.data.state === 'COMPLETADO_RESERVADO'
-                            "
-                            icon="pi pi-file-pdf"
-                            class="p-button-rounded p-button-success p-button-outlined"
-                            @click="generateAnalysisReport(slotProps.data)"
-                            v-tooltip.top="'Generar Reporte'"
-                          />
-
-                          <!-- Imprimir Informe Consolidado: aparece en estado COMPLETADO_RESERVADO -->
-                          <Button
-                            v-if="slotProps.data.state === 'COMPLETADO_RESERVADO'"
-                            icon="pi pi-print"
-                            class="p-button-rounded p-button-info p-button-outlined"
-                            @click="printConsolidatedReport(slotProps.data)"
-                            v-tooltip.top="'Imprimir Informe Consolidado'"
-                          />
-                        </template>
                       </div>
                     </template>
                   </Column>
@@ -259,6 +204,22 @@
     :analysis="selectedAnalysisForChemicalTest"
     @saved="fetchAnalyses"
   />
+
+  <CompleteAnalysis
+    ref="macroanalysisDialogRef"
+    :analysis="selectedAnalysisForMacroanalysis"
+    :show-trigger="false"
+    @processed="fetchAnalyses"
+  />
+
+  <AnalysisHistoryDialog
+    v-model:visible="showAnalysisHistoryDialog"
+    :analysis-id="selectedAnalysisForHistory?.id"
+    type="all"
+    :title="analysisHistoryTitle"
+  />
+
+  <PrimeMenu ref="analysisActionsMenu" :model="analysisActionMenuItems" popup />
 
   <AnalysisDocumentDialog
     v-model:visible="showAnalysisDocumentDialog"
@@ -380,7 +341,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { FilterMatchMode } from 'primevue/api'
 import PlantillaContenido from '../template/PlantillaContenido.vue'
@@ -388,6 +349,7 @@ import Card from 'primevue/card'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
+import PrimeMenu from 'primevue/menu'
 import InputText from 'primevue/inputtext'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
@@ -424,6 +386,7 @@ import BulkPreAnalysisDialog from '@/components/preanalysis/BulkPreAnalysisDialo
 import CompleteAnalysis from '@/components/analysis/CompleteAnalysis.vue'
 import MicroanalysisDialog from '@/components/analysis/MicroanalysisDialog.vue'
 import ChemicalTestDialog from '@/components/analysis/ChemicalTestDialog.vue'
+import AnalysisHistoryDialog from '@/components/analysis/AnalysisHistoryDialog.vue'
 import AnalysisDocumentDialog from '@/components/analysis/AnalysisDocumentDialog.vue'
 export default {
   name: 'PreAnalysisView',
@@ -433,6 +396,7 @@ export default {
     DataTable,
     Column,
     Button,
+    PrimeMenu,
     InputText,
     IconField,
     InputIcon,
@@ -451,6 +415,7 @@ export default {
     CompleteAnalysis,
     MicroanalysisDialog,
     ChemicalTestDialog,
+    AnalysisHistoryDialog,
     AnalysisDocumentDialog,
   },
 
@@ -485,6 +450,47 @@ export default {
       return normalizedName.includes('cannabis') || normalizedName.includes('marihuana')
     }
 
+    const macroanalysisStates = new Set([
+      'PENDIENTE',
+      'MACRO_COMPLETADO',
+      'MICRO_COMPLETADO',
+      'COMPLETADO',
+      'COMPLETADO_RESERVADO',
+    ])
+
+    const canEditMacroanalysis = (analysis) => {
+      return macroanalysisStates.has(String(analysis?.state || '').toUpperCase())
+    }
+
+    const microanalysisStates = new Set([
+      'MACRO_COMPLETADO',
+      'MICRO_COMPLETADO',
+      'COMPLETADO',
+      'COMPLETADO_RESERVADO',
+    ])
+
+    const canEditMicroanalysis = (analysis) => {
+      return microanalysisStates.has(String(analysis?.state || '').toUpperCase())
+    }
+
+    const isMicroanalysisEditing = (analysis) => {
+      return String(analysis?.state || '').toUpperCase() !== 'MACRO_COMPLETADO'
+    }
+
+    const chemicalTestStates = new Set(['MICRO_COMPLETADO', 'COMPLETADO', 'COMPLETADO_RESERVADO'])
+
+    const canEditChemicalTest = (analysis) => {
+      return chemicalTestStates.has(String(analysis?.state || '').toUpperCase())
+    }
+
+    const isChemicalTestEditing = (analysis) => {
+      return String(analysis?.state || '').toUpperCase() !== 'MICRO_COMPLETADO'
+    }
+
+    const canViewAnalysisHistory = (analysis) => {
+      return microanalysisStates.has(String(analysis?.state || '').toUpperCase())
+    }
+
     const analysisTabs = computed(() => [
       {
         key: 'cannabis',
@@ -503,6 +509,12 @@ export default {
       selectedAnalysisActNumber.value = null
     })
 
+    // Diálogos y menú contextual de acciones del análisis.
+    const macroanalysisDialogRef = ref(null)
+    const selectedAnalysisForMacroanalysis = ref(null)
+    const analysisActionsMenu = ref(null)
+    const analysisActionMenuItems = ref([])
+
     // Dialog de microanálisis
     const showMicroanalysisDialog = ref(false)
     const selectedAnalysisForMicroanalysis = ref(null)
@@ -510,6 +522,19 @@ export default {
     // Dialog de examen químico
     const showChemicalTestDialog = ref(false)
     const selectedAnalysisForChemicalTest = ref(null)
+
+    // Historial unificado de macroanálisis, microanálisis y examen químico.
+    const showAnalysisHistoryDialog = ref(false)
+    const selectedAnalysisForHistory = ref(null)
+    const analysisHistoryTitle = computed(() => {
+      const analysis = selectedAnalysisForHistory.value
+      if (!analysis) return 'Historial de modificaciones'
+
+      const reference = analysis.number_protocol
+        ? `protocolo ${analysis.number_protocol}`
+        : `análisis #${analysis.id}`
+      return `Historial del ${reference}`
+    })
 
     // Los documentos se gestionan exclusivamente desde las filas de la pestaña ISP.
     const showAnalysisDocumentDialog = ref(false)
@@ -679,11 +704,12 @@ export default {
 
     // Computed para validar el formulario individual
     const isPreAnalysisFormValid = computed(() => {
+      const totalAvailable = getSubstanceTotalAvailable(selectedSubstance.value)
       return (
         preAnalysisData.value.destination &&
         preAnalysisData.value.weight_sampled &&
         preAnalysisData.value.weight_sampled > 0 &&
-        preAnalysisData.value.weight_sampled <= (selectedSubstance.value?.weight || 0)
+        preAnalysisData.value.weight_sampled <= totalAvailable
       )
     })
 
@@ -703,12 +729,10 @@ export default {
       )
     }
 
-    const keepsUnitBalance = (substance, individualWeight = {}) =>
-      isUnitMeasurementType(substance?.measurement_type) &&
-      Boolean(individualWeight.keepUnitBalance)
-
     const getSubstanceTotalAvailable = (substance) =>
-      Number(substance?.weight_net ?? substance?.weight ?? 0)
+      isUnitMeasurementType(substance?.measurement_type)
+        ? Number(substance?.unit_quantity || 0)
+        : Number(substance?.weight_net ?? substance?.weight ?? 0)
 
     const isRowSelectable = (data) => {
       console.log(data.state)
@@ -732,17 +756,13 @@ export default {
         return selectedSubstances.value.every((substance) => {
           const individualWeight = bulkPreAnalysisData.value.individualWeights[substance.id] || {}
           const contr = individualWeight.contra || 0
-          if (keepsUnitBalance(substance, individualWeight)) {
-            const sample = Number(bulkPreAnalysisData.value.autoWeightValue)
-            const totalAvailable = getSubstanceTotalAvailable(substance)
-            return (
-              sample > 0 &&
-              Number(contr) >= 0 &&
-              (totalAvailable <= 0 || sample + Number(contr) <= totalAvailable)
-            )
-          }
           const totalAvailable = getSubstanceTotalAvailable(substance)
-          return Number(bulkPreAnalysisData.value.autoWeightValue) + Number(contr) <= totalAvailable
+          const sample = Number(bulkPreAnalysisData.value.autoWeightValue)
+          const validAmounts = sample + Number(contr) <= totalAvailable
+          const validUnits =
+            !isUnitMeasurementType(substance?.measurement_type) ||
+            (Number.isInteger(sample) && Number.isInteger(Number(contr)))
+          return validAmounts && validUnits
         })
       } else {
         // Validar que todas las sustancias tengan peso de muestra asignado y que muestra+contra <= peso total
@@ -752,15 +772,11 @@ export default {
           const contra = Number(obj.contra) || 0
           const totalAvailable = getSubstanceTotalAvailable(substance)
 
-          if (keepsUnitBalance(substance, obj)) {
-            return (
-              sample > 0 &&
-              contra >= 0 &&
-              (totalAvailable <= 0 || sample + contra <= totalAvailable)
-            )
-          }
-
-          return sample > 0 && sample + contra <= totalAvailable
+          const validAmounts = sample > 0 && sample + contra <= totalAvailable
+          const validUnits =
+            !isUnitMeasurementType(substance?.measurement_type) ||
+            (Number.isInteger(sample) && Number.isInteger(contra))
+          return validAmounts && validUnits
         })
       }
     })
@@ -905,6 +921,9 @@ export default {
           reception: { id: selectedReception.value.id },
           destination: formData.destination,
           weight_sampled: formData.weight_sampled,
+          weightContra: 0,
+          weightDestruction:
+            getSubstanceTotalAvailable(selectedSubstance.value) - Number(formData.weight_sampled),
           methodDestruction: formData.methodDestruction,
           observation: formData.observation,
           user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -915,6 +934,7 @@ export default {
           preAnalysisService.create(payload),
           substancesService.update(selectedSubstance.value.id, {
             ...selectedSubstance.value,
+            packaging: { id: 13 },
             state: 'DERIVADO',
           }),
         ])
@@ -980,9 +1000,6 @@ export default {
         bulkPreAnalysisData.value.individualWeights[substance.id] = {
           sample: null,
           contra: null,
-          keepUnitBalance:
-            isUnitMeasurementType(substance?.measurement_type) &&
-            getSubstanceTotalAvailable(substance) <= 0,
         }
       })
 
@@ -1007,15 +1024,18 @@ export default {
         try {
           const totalWeight = selectedSubstances.value.reduce((sum, substance) => {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
+            const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            return sum + contraWeight
+            const restante =
+              getSubstanceTotalAvailable(substance) - Number(sampleWeight || 0) - contraWeight
+            return sum + (restante > 0 ? restante : 0)
           }, 0)
 
           const headerPayload = {
             act_number: selectedReceptionForBulk.value?.number || `BULK-${Date.now()}`,
             date_destruction: new Date().toISOString().split('T')[0],
             observation: formData.observation || 'Procesamiento masivo',
-            state: 'COMPLETADO',
+            state: 'PENDIENTE',
             weight: totalWeight,
             methodDestruction: formData.methodDestruction,
             user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -1041,15 +1061,18 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const keepUnitBalance = keepsUnitBalance(substance, indiv)
+            const isUnitBalance = isUnitMeasurementType(substance?.measurement_type)
             const totalAvailable = getSubstanceTotalAvailable(substance)
+            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
 
             if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
-            if (
-              (!keepUnitBalance || totalAvailable > 0) &&
-              sampleWeight + contraWeight > totalAvailable
-            )
+            if (Number(sampleWeight) + contraWeight > totalAvailable)
               throw new Error('La suma de muestra y contramuestra excede el total disponible')
+            if (
+              isUnitBalance &&
+              (!Number.isInteger(Number(sampleWeight)) || !Number.isInteger(contraWeight))
+            )
+              throw new Error('Las cantidades en unidades deben ser números enteros')
 
             // Crear pre-análisis
             const payload = {
@@ -1057,6 +1080,8 @@ export default {
               reception: selectedReceptionForBulk.value,
               destination: formData.destination,
               weight_sampled: sampleWeight,
+              weightContra: contraWeight,
+              weightDestruction: restante,
               methodDestruction: formData.methodDestruction,
               observation: formData.observation,
               user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -1087,37 +1112,48 @@ export default {
             // 3️⃣ Si hay contramuestra, crear registro de almacenamiento Y destruction detail
             if (contraWeight > 0) {
               try {
-                const { data: createdStorage } = await storagesService.create({
+                await storagesService.create({
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
-                  measurement_type: 'GRAMOS',
-                  unit_quantity: null,
+                  measurement_type: isUnitBalance
+                    ? substance?.measurement_type || 'UNIDADES'
+                    : 'GRAMOS',
+                  unit_quantity: isUnitBalance ? contraWeight : null,
                   description: formData.observation || '',
                   substance: substance,
                   storageLocation: { id: 1 },
                 })
 
-                // 4️⃣ CREAR DESTRUCTION DETAIL usando el mismo header
+              } catch (storErr) {
+                console.warn('No se pudo crear registro de almacenamiento:', storErr)
+              }
+            }
+
+            // 4️⃣ Crear el detalle con el saldo destinado a destrucción.
+            if (restante > 0 && destructionHeader) {
+              try {
                 const detailPayload = {
-                  state: 'COMPLETADO',
-                  weight: contraWeight,
-                  measurement_type: 'GRAMOS',
-                  unit_quantity: null,
+                  state: 'PENDIENTE',
+                  weight: restante,
+                  measurement_type: isUnitBalance
+                    ? substance?.measurement_type || 'UNIDADES'
+                    : 'GRAMOS',
+                  unit_quantity: isUnitBalance ? restante : null,
                   destructionHeader: destructionHeader,
                   substance: substance,
-                  storage: createdStorage,
                 }
                 await destructionDetailsService.create(detailPayload)
                 console.log(`✅ Destruction Detail creado para sustancia ${substance.nue}`)
-              } catch (storErr) {
-                console.warn('No se pudo crear registro de almacenamiento/detalle:', storErr)
+              } catch (detailErr) {
+                console.warn('No se pudo crear el detalle de destrucción:', detailErr)
               }
             }
 
             // Actualizar estado de la sustancia
             const payloadSubstance = {
               ...substance,
+              packaging: { id: 13 },
               state: 'DERIVADO',
             }
             await substancesService.update(substance.id, payloadSubstance)
@@ -1752,6 +1788,12 @@ export default {
       }
     }
 
+    const openMacroanalysisDialog = async (analysis) => {
+      selectedAnalysisForMacroanalysis.value = analysis
+      await nextTick()
+      macroanalysisDialogRef.value?.openDialog()
+    }
+
     const openMicroanalysisDialog = (analysis) => {
       selectedAnalysisForMicroanalysis.value = analysis
       showMicroanalysisDialog.value = true
@@ -1760,6 +1802,166 @@ export default {
     const openChemicalTestDialog = (analysis) => {
       selectedAnalysisForChemicalTest.value = analysis
       showChemicalTestDialog.value = true
+    }
+
+    const openAnalysisHistoryDialog = (analysis) => {
+      selectedAnalysisForHistory.value = analysis
+      showAnalysisHistoryDialog.value = true
+    }
+
+    const getPrimaryAnalysisAction = (analysis, tabKey) => {
+      if (tabKey === 'isp') {
+        return { key: 'documents', label: 'Documentos', icon: 'pi pi-paperclip', severity: 'info' }
+      }
+
+      if (analysis?.preAnalysis?.destination?.id !== 1) return null
+
+      switch (String(analysis?.state || '').toUpperCase()) {
+        case 'PENDIENTE':
+          return {
+            key: 'macro',
+            label: 'Macroanálisis',
+            icon: 'pi pi-cog',
+            severity: 'success',
+          }
+        case 'MACRO_COMPLETADO':
+          return {
+            key: 'micro',
+            label: 'Microanálisis',
+            icon: 'pi pi-search',
+            severity: 'info',
+          }
+        case 'MICRO_COMPLETADO':
+          return {
+            key: 'chemical',
+            label: 'Examen químico',
+            icon: 'pi pi-file-edit',
+            severity: 'warning',
+          }
+        case 'COMPLETADO':
+          return {
+            key: 'report',
+            label: 'Generar reporte',
+            icon: 'pi pi-file-pdf',
+            severity: 'success',
+          }
+        case 'COMPLETADO_RESERVADO':
+          return {
+            key: 'consolidated',
+            label: 'Informe consolidado',
+            icon: 'pi pi-print',
+            severity: 'info',
+          }
+        default:
+          return null
+      }
+    }
+
+    const runPrimaryAnalysisAction = (analysis, tabKey) => {
+      const action = getPrimaryAnalysisAction(analysis, tabKey)
+      if (!action) return
+
+      const commands = {
+        documents: () => openAnalysisDocumentDialog(analysis),
+        macro: () => openMacroanalysisDialog(analysis),
+        micro: () => openMicroanalysisDialog(analysis),
+        chemical: () => openChemicalTestDialog(analysis),
+        report: () => generateAnalysisReport(analysis),
+        consolidated: () => printConsolidatedReport(analysis),
+      }
+
+      commands[action.key]?.()
+    }
+
+    const joinMenuSections = (sections) => {
+      return sections
+        .filter((section) => section.length > 0)
+        .flatMap((section, index) => (index === 0 ? section : [{ separator: true }, ...section]))
+    }
+
+    const buildAnalysisActionMenu = (analysis, tabKey) => {
+      const state = String(analysis?.state || '').toUpperCase()
+
+      if (tabKey === 'isp') {
+        const reservedDocuments = []
+        if (state === 'RESERVADO') {
+          reservedDocuments.push(
+            {
+              label: 'Imprimir reservado ISP',
+              icon: 'pi pi-print',
+              command: () => printReserved(analysis),
+            },
+            {
+              label: 'Imprimir reservado Fiscalía',
+              icon: 'pi pi-file-pdf',
+              command: () => printReservedFiscalia(analysis),
+            },
+          )
+        }
+        return reservedDocuments
+      }
+
+      if (analysis?.preAnalysis?.destination?.id !== 1) return []
+
+      const editActions = []
+      if (state !== 'PENDIENTE' && canEditMacroanalysis(analysis)) {
+        editActions.push({
+          label: 'Editar macroanálisis',
+          icon: 'pi pi-pencil',
+          command: () => openMacroanalysisDialog(analysis),
+        })
+      }
+      if (canEditMicroanalysis(analysis) && isMicroanalysisEditing(analysis)) {
+        editActions.push({
+          label: 'Editar microanálisis',
+          icon: 'pi pi-pencil',
+          command: () => openMicroanalysisDialog(analysis),
+        })
+      }
+      if (canEditChemicalTest(analysis) && isChemicalTestEditing(analysis)) {
+        editActions.push({
+          label: 'Editar examen químico',
+          icon: 'pi pi-pencil',
+          command: () => openChemicalTestDialog(analysis),
+        })
+      }
+
+      const documentActions = []
+      if (analysis?.micro) {
+        documentActions.push({
+          label: 'Imprimir microanálisis',
+          icon: 'pi pi-file-pdf',
+          command: () => printMicroanalysis(analysis),
+        })
+      }
+      if (state === 'COMPLETADO_RESERVADO') {
+        documentActions.push({
+          label: 'Generar reporte individual',
+          icon: 'pi pi-file-pdf',
+          command: () => generateAnalysisReport(analysis),
+        })
+      }
+
+      const auditActions = canViewAnalysisHistory(analysis)
+        ? [
+            {
+              label: 'Ver historial',
+              icon: 'pi pi-history',
+              command: () => openAnalysisHistoryDialog(analysis),
+            },
+          ]
+        : []
+
+      return joinMenuSections([editActions, documentActions, auditActions])
+    }
+
+    const hasMoreAnalysisActions = (analysis, tabKey) => {
+      return buildAnalysisActionMenu(analysis, tabKey).length > 0
+    }
+
+    const openAnalysisActionsMenu = (event, analysis, tabKey) => {
+      analysisActionMenuItems.value = buildAnalysisActionMenu(analysis, tabKey)
+      analysisActionsMenu.value?.toggle(event)
     }
 
     const sendToISP = async (analysis) => {
@@ -2027,6 +2229,12 @@ export default {
       selectedAnalysis,
       canSelectAnalysis,
       canSelectRow,
+      canEditMacroanalysis,
+      canEditMicroanalysis,
+      isMicroanalysisEditing,
+      canEditChemicalTest,
+      isChemicalTestEditing,
+      canViewAnalysisHistory,
       isAnalysisSelected,
       toggleAnalysisSelection,
 
@@ -2037,12 +2245,24 @@ export default {
       fetchAnalyses,
       generateConsolidatedReport,
       previewConsolidatedReport,
+      macroanalysisDialogRef,
+      selectedAnalysisForMacroanalysis,
+      analysisActionsMenu,
+      analysisActionMenuItems,
+      getPrimaryAnalysisAction,
+      runPrimaryAnalysisAction,
+      hasMoreAnalysisActions,
+      openAnalysisActionsMenu,
       showMicroanalysisDialog,
       selectedAnalysisForMicroanalysis,
       openMicroanalysisDialog,
       showChemicalTestDialog,
       selectedAnalysisForChemicalTest,
       openChemicalTestDialog,
+      showAnalysisHistoryDialog,
+      selectedAnalysisForHistory,
+      analysisHistoryTitle,
+      openAnalysisHistoryDialog,
       showAnalysisDocumentDialog,
       selectedAnalysisForDocuments,
       openAnalysisDocumentDialog,
@@ -2077,5 +2297,29 @@ export default {
 :deep(.borrador-row) > td,
 :deep(.borrador-row) td {
   background-color: #fff6b8 !important;
+}
+
+.analysis-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-start;
+  min-width: 12.5rem;
+}
+
+.primary-analysis-action {
+  justify-content: center;
+  min-width: 10.5rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .analysis-actions {
+    min-width: auto;
+  }
+
+  .primary-analysis-action {
+    min-width: auto;
+  }
 }
 </style>

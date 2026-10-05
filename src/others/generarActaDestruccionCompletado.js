@@ -2,6 +2,22 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { addDraftWatermark, openPdfPreview, parsePdfDate } from '@/others/pdfPreview.js'
 
+const isUnitMeasurement = (detail) => {
+  const measurementType = String(
+    detail?.measurement_type || detail?.substance?.measurement_type || '',
+  ).toLowerCase()
+  return measurementType.includes('unidad') || measurementType.includes('paquete')
+}
+
+const formatDetailAmount = (detail) => {
+  if (isUnitMeasurement(detail)) {
+    const amount = Number(detail?.unit_quantity ?? detail?.weight ?? 0)
+    return `${Math.trunc(amount)} unidades`
+  }
+
+  return `${Number(detail?.weight || 0).toFixed(2)} gramos neto`
+}
+
 /**
  * Genera el acta de destrucción para estado COMPLETADO
  * @param {Object} destructionHeader - Header de destrucción con información completa
@@ -63,7 +79,7 @@ export const generarActaDestruccionCompletadoPDF = async (
     const muestrasData = destructionDetails.map((detail, index) => [
       `MUESTRA Nº ${index + 1}.`,
       detail.substance?.substanceType?.name || '—',
-      `${Number(detail.weight || 0).toFixed(2)} gramos neto`,
+      formatDetailAmount(detail),
     ])
 
     autoTable(doc, {

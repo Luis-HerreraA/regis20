@@ -347,7 +347,11 @@ export default {
         const previewOptions = { preview: true, draft: true, previewWindow }
 
         if (documentType === 'incineration') {
-          await generarActaDestruccionMetodo1PDF(previewHeader, previewOptions)
+          await generarActaDestruccionMetodo1PDF(
+            previewHeader,
+            previewOptions,
+            destructionDetails.value,
+          )
         } else {
           await generarActaDestruccionCompletadoPDF(
             previewHeader,

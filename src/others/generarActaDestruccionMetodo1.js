@@ -8,6 +8,7 @@ import { addDraftWatermark, openPdfPreview, parsePdfDate } from '@/others/pdfPre
 export const generarActaDestruccionMetodo1PDF = async (
   destructionHeader,
   { preview = false, draft = false, previewWindow = null } = {},
+  destructionDetails = [],
 ) => {
   if (!destructionHeader) {
     console.error('No hay datos de destrucción para generar el documento')
@@ -53,9 +54,35 @@ export const generarActaDestruccionMetodo1PDF = async (
   doc.text(lineas1, margin, yPos)
   yPos += lineas1.length * 6 + 10
 
+  const totals = (destructionDetails || []).reduce(
+    (accumulator, detail) => {
+      const measurementType = String(
+        detail?.measurement_type || detail?.substance?.measurement_type || '',
+      ).toLowerCase()
+      const usesUnits =
+        measurementType.includes('unidad') || measurementType.includes('paquete')
+
+      if (usesUnits) {
+        accumulator.units += Number(detail?.unit_quantity ?? detail?.weight ?? 0)
+        accumulator.hasUnits = true
+      } else {
+        accumulator.grams += Number(detail?.weight || 0)
+        accumulator.hasGrams = true
+      }
+      return accumulator
+    },
+    { units: 0, grams: 0, hasUnits: false, hasGrams: false },
+  )
+
+  const amountParts = []
+  if (totals.hasUnits) amountParts.push(`${Math.trunc(totals.units)} unidades`)
+  if (totals.hasGrams) amountParts.push(`${totals.grams.toFixed(2)} g`)
+  const formattedAmount =
+    amountParts.join(' y ') || `${Number(destructionHeader.weight || 0).toFixed(2)} g`
+
   // Cantidad
   doc.text(
-    `Cantidad:                           ${destructionHeader.weight || 'XXX'} gr. (Considera envoltorios y bolsas de transporte)`,
+    `Cantidad:                           ${formattedAmount} (considera envoltorios y bolsas de transporte)`,
     margin,
     yPos,
   )

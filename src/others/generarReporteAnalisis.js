@@ -68,7 +68,7 @@ export const generarReporteAnalisisPDF = (
   const positivo =
     'La Cannabis o marihuana es un producto vegetal que por su propia naturaleza contiene principios activos – en concreto el THC – que es un producto del metabolismo de la planta, de cuya composición forma parte con mayor o menor riqueza en cualquiera de sus partes y en mayor o menor proporción, según la calidad del cultivo, zona agrícola de procedencia y otras variables naturales. Si además, el producto vegetal no ha sufrido un proceso químico de purificación de los principios activos, no afecta la concentración de THC, por ende Cannabis 100% pura. La Muestra analizada corresponde en su totalidad a material vegetal con características propias de Cannabis, sin evidencia de mezcla con otros materiales herbáceos y/o proceso químico de purificación de principio activo, por lo que la muestra corresponde a Cannabis 100% pura.'
   const negativo =
-    'En muestra analizada, no se detecta presencia de principio activo cannabis – en concreto THC – por lo que la muestra es negativa (-)'
+    'En muestra analizada, no se detecta presencia de principios activos de cannabis – en concreto THC – por lo que la muestra es negativa (-)'
   const doc = new jsPDF({
     compress: true,
   })
@@ -103,7 +103,7 @@ export const generarReporteAnalisisPDF = (
 
   const receptionNumber = analysis.preAnalysis?.reception?.number || 'N/A'
   const sampleWeight = analysis.preAnalysis?.weight_sampled || 0
-  const totalWeight = analysis.preAnalysis?.substance?.weight || 0
+  const totalWeight = analysis.preAnalysis?.substance?.weight_net || 0
   const receptionDate =
     analysis.preAnalysis?.reception?.date_reception || new Date().toISOString().split('T')[0]
 
@@ -124,7 +124,7 @@ export const generarReporteAnalisisPDF = (
 
   yPos += 12
 
-  // MUESTRA Nº
+  // SUSTANCIA Nº
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   const substanceN = analysis.preAnalysis?.substance?.nsubstance || 'N/A'
@@ -174,11 +174,16 @@ export const generarReporteAnalisisPDF = (
   doc.text('2.- EXAMEN MICROSCÓPICO:', margin, yPos)
   doc.setFont('helvetica', 'normal')
   yPos += 6
-  doc.text(
-    draft && !analysis.micro ? 'Pendiente de completar.' : 'Característico de Cannabis sativa.',
-    margin + 15,
-    yPos,
-  )
+  const microResult = String(analysis.micro || '')
+    .trim()
+    .toUpperCase()
+  const microscopicText =
+    microResult === 'NEGATIVO'
+      ? 'No se observan estructuras características de Cannabis sativa.'
+      : microResult === 'POSITIVO'
+        ? 'Característico de Cannabis sativa.'
+        : 'Pendiente de completar.'
+  doc.text(microscopicText, margin + 15, yPos)
 
   yPos += 8
 

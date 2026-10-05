@@ -152,9 +152,9 @@
           <!-- Sustancias -->
           <div class="section-title mt-4">💊 Sustancias Asociadas</div>
 
-          <!-- Primera fila: tipo y packaging -->
+          <!-- Tipo de sustancia -->
           <div class="grid formgrid p-fluid align-items-end">
-            <div class="field col-12 md:col-6">
+            <div class="field col-12">
               <label>Tipo de Sustancia</label>
               <Dropdown
                 v-model="newSubstance.substanceType"
@@ -162,19 +162,6 @@
                 optionLabel="name"
                 optionValue="id"
                 placeholder="Seleccione sustancia"
-                class="w-full"
-                :filter="true"
-              />
-            </div>
-
-            <div class="field col-12 md:col-6">
-              <label>Contenedor</label>
-              <Dropdown
-                v-model="newSubstance.packaging"
-                :options="packagings"
-                optionLabel="name"
-                optionValue="id"
-                placeholder="Seleccione contenedor"
                 class="w-full"
                 :filter="true"
               />
@@ -197,7 +184,7 @@
             </div>
 
             <div class="field col-12 md:col-2">
-              <label>Peso Bruto {{ isUnitMeasurement ? '(opcional)' : '*' }}</label>
+              <label>{{ isUnitMeasurement ? 'Peso bruto referencial (g)' : 'Peso bruto (g) *' }}</label>
               <InputNumber
                 v-model="newSubstance.weight"
                 :min="0"
@@ -208,7 +195,7 @@
             </div>
 
             <div class="field col-12 md:col-2">
-              <label>Peso Neto {{ isUnitMeasurement ? '(opcional)' : '' }}</label>
+              <label>{{ isUnitMeasurement ? 'Peso neto referencial (g)' : 'Peso neto (g)' }}</label>
               <InputNumber
                 v-model="newSubstance.weight_net"
                 :min="0"
@@ -227,13 +214,15 @@
               />
             </div>
 
-            <div v-show="isUnitMeasurement" class="field col-12 md:col-2">
-              <label>Cantidad</label>
+            <div class="field col-12 md:col-2">
+              <label>
+                {{ isUnitMeasurement ? 'Cantidad recepcionada (unidades) *' : 'Unidades referenciales' }}
+              </label>
               <InputNumber
                 v-model="newSubstance.unit_quantity"
                 :min="0"
                 mode="decimal"
-                :maxFractionDigits="2"
+                :maxFractionDigits="0"
                 class="w-full"
               />
             </div>
@@ -314,11 +303,6 @@
                 }}
               </template>
             </Column>
-            <Column field="packaging" header="Contenedor">
-              <template #body="slotProps">
-                {{ getPackagingName(slotProps.data.packaging) }}
-              </template>
-            </Column>
             <Column field="commune" header="Comuna">
               <template #body="slotProps">
                 {{ getCommuneName(slotProps.data.commune) }}
@@ -388,7 +372,6 @@ import communesService from '@/services/communesService'
 import locationsService from '@/services/locationsService'
 import substancesTypesService from '@/services/substancesTypesService'
 import gradesService from '@/services/gradesService'
-import packagingsService from '@/services/packagingsService'
 import preAnalysisService from '@/services/preAnalysisService'
 import { generarActaPDF } from '@/others/generarActa'
 
@@ -419,6 +402,7 @@ export default {
     const isNewPolice = ref(false) // 🟢 Banderín para saber si el policía es nuevo
 
     const toast = useToast()
+    const DEFAULT_PACKAGING_ID = 13
 
     // Datos para dropdowns
     const institutions = ref([])
@@ -427,7 +411,6 @@ export default {
     const locations = ref([])
     const substancesTypes = ref([])
     const grades = ref([])
-    const packagings = ref([])
 
     const form = reactive({
       number: '',
@@ -472,7 +455,7 @@ export default {
       unity: '', // 🆕 unidad de medida
       other_unity: '',
       substanceType: null,
-      packaging: null,
+      packaging: DEFAULT_PACKAGING_ID,
       commune: null,
     })
 
@@ -544,6 +527,13 @@ export default {
       if (hasValue(newSubstance.weight_net) && Number(newSubstance.weight_net) <= 0) return false
 
       if (
+        hasValue(newSubstance.unit_quantity) &&
+        (Number(newSubstance.unit_quantity) <= 0 ||
+          !Number.isInteger(Number(newSubstance.unit_quantity)))
+      )
+        return false
+
+      if (
         hasValue(newSubstance.weight) &&
         hasValue(newSubstance.weight_net) &&
         Number(newSubstance.weight_net) > Number(newSubstance.weight)
@@ -601,6 +591,20 @@ export default {
           })
           return false
         }
+      }
+
+      if (
+        hasValue(substance.unit_quantity) &&
+        (Number(substance.unit_quantity) <= 0 ||
+          !Number.isInteger(Number(substance.unit_quantity)))
+      ) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Cantidad inválida',
+          detail: `La cantidad de unidades debe ser un número entero mayor a 0 en ${rowLabel}.`,
+          life: 3500,
+        })
+        return false
       }
 
       if (!isUnit && Number(substance.weight || 0) <= 0) {
@@ -671,14 +675,13 @@ export default {
     const fetchDropdownData = async () => {
       try {
         isLoading.value = true
-        const [instRes, typeRes, commRes, locRes, subRes, gradesRes, packRes] = await Promise.all([
+        const [instRes, typeRes, commRes, locRes, subRes, gradesRes] = await Promise.all([
           institutionsService.getAll(),
           institutionTypesService.getAll(),
           communesService.getAll(),
           locationsService.getAll(),
           substancesTypesService.getAll(),
           gradesService.getAll(),
-          packagingsService.getAll(),
         ])
 
         institutions.value = instRes.data || []
@@ -687,7 +690,6 @@ export default {
         locations.value = locRes.data || []
         substancesTypes.value = subRes.data || []
         grades.value = gradesRes.data || []
-        packagings.value = packRes.data || []
       } catch (err) {
         console.error('❌ Error cargando datos para dropdowns:', err)
       } finally {
@@ -698,11 +700,6 @@ export default {
     const getSubstanceName = (substanceId) => {
       const substance = substancesTypes.value.find((s) => s.id === substanceId)
       return substance ? substance.name : 'Desconocido'
-    }
-
-    const getPackagingName = (packagingId) => {
-      const packaging = packagings.value.find((p) => p.id === packagingId)
-      return packaging ? packaging.name : 'Desconocido'
     }
 
     const getCommuneName = (communeId) => {
@@ -724,15 +721,6 @@ export default {
           rutError.value = 'RUT inválido'
         } else {
           rutError.value = ''
-        }
-      },
-    )
-
-    watch(
-      () => [newSubstance.measurement_type, newSubstance.other_unity],
-      () => {
-        if (!isUnitMeasurement.value) {
-          newSubstance.unit_quantity = null
         }
       },
     )
@@ -782,6 +770,7 @@ export default {
       Object.assign(form, {
         number: '',
         of_number: '',
+        nparte: '',
         of_number_date: null,
         date_reception: null,
         location: { id: 1 },
@@ -816,7 +805,7 @@ export default {
         unit_quantity: null,
         weight: null,
         substanceType: null,
-        packaging: null,
+        packaging: DEFAULT_PACKAGING_ID,
         weight_net: null, // 🆕 peso neto
         unity: '',
         other_unity: '',
@@ -887,16 +876,13 @@ export default {
       const substanceToAdd = {
         ...newSubstance,
         nsubstance,
+        packaging: DEFAULT_PACKAGING_ID,
         commune: form.police.institutionType?.commune?.id || null,
       }
 
       substanceToAdd.measurement_type = getResolvedMeasurementType(substanceToAdd)
       substanceToAdd.other_unity = ''
       substanceToAdd.description = String(substanceToAdd.description || '').trim() || null
-
-      if (!isUnitMeasurementType(getResolvedMeasurementType(substanceToAdd))) {
-        substanceToAdd.unit_quantity = null
-      }
 
       form.substances.push(substanceToAdd)
 
@@ -911,7 +897,7 @@ export default {
         unity: '',
         other_unity: '',
         substanceType: null,
-        packaging: null,
+        packaging: DEFAULT_PACKAGING_ID,
         commune: null,
       })
     }
@@ -1099,7 +1085,7 @@ export default {
               weight_net: substance.weight_net, // 🆕
               reception: receptionResponse.data,
               substanceType: substance.substanceType ? { id: substance.substanceType } : null,
-              packaging: substance.packaging ? { id: substance.packaging } : null,
+              packaging: { id: DEFAULT_PACKAGING_ID },
               commune: form.police.institutionType?.commune?.id
                 ? { id: form.police.institutionType.commune.id }
                 : null,
@@ -1112,7 +1098,6 @@ export default {
           form.substances = form.substances.map((s) => ({
             ...s,
             substanceTypeName: getSubstanceName(s.substanceType),
-            packagingName: getPackagingName(s.packaging),
             communeName: getCommuneName(s.commune),
           }))
           console.log(form.substances)
@@ -1184,7 +1169,7 @@ export default {
               weight_net: substance.weight_net, // 🆕
               reception: receptionResponse.data,
               substanceType: substance.substanceType ? { id: substance.substanceType } : null,
-              packaging: substance.packaging ? { id: substance.packaging } : null,
+              packaging: { id: DEFAULT_PACKAGING_ID },
               commune: form.police.institutionType?.commune?.id
                 ? { id: form.police.institutionType.commune.id }
                 : null,
@@ -1216,7 +1201,6 @@ export default {
           form.substances = form.substances.map((s) => ({
             ...s,
             substanceTypeName: getSubstanceName(s.substanceType),
-            packagingName: getPackagingName(s.packaging),
             communeName: getCommuneName(s.commune),
           }))
 
@@ -1264,7 +1248,6 @@ export default {
       communes,
       locations,
       grades,
-      packagings,
       rutError,
       isNewPolice,
       newSubstance,
@@ -1282,7 +1265,6 @@ export default {
       guardarRecepcion,
       formatDateOnly,
       getSubstanceName,
-      getPackagingName,
       getCommuneName,
       guardarBorrador,
     }

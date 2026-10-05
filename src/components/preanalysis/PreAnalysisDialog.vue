@@ -22,19 +22,27 @@
       </div>
 
       <div class="field">
-        <label for="weight">Peso a muestrear (gr) *</label>
+        <label for="weight">{{ samplingLabel }} *</label>
         <InputNumber
           id="weight"
           v-model="formData.weight_sampled"
           mode="decimal"
           :min="0"
-          :max="selectedSubstance?.weight || 0"
-          :fractionDigits="2"
+          :max="totalAvailable"
+          :minFractionDigits="isUnitMeasurement ? 0 : 1"
+          :maxFractionDigits="isUnitMeasurement ? 0 : 2"
+          :useGrouping="false"
           class="w-full"
         />
-        <small class="p-error" v-if="formData.weight_sampled > (selectedSubstance?.weight || 0)">
-          El peso no puede ser mayor al peso total de la sustancia ({{ selectedSubstance?.weight }}
-          gr)
+        <small class="text-500">
+          Disponible: {{ formattedTotalAvailable }} {{ unitLabel }}
+          <template v-if="isUnitMeasurement && referenceWeight !== null">
+            · Peso neto referencial: {{ referenceWeight }} g
+          </template>
+        </small>
+        <small class="p-error block" v-if="formData.weight_sampled > totalAvailable">
+          La cantidad no puede superar el total disponible ({{ formattedTotalAvailable }}
+          {{ unitLabel }}).
         </small>
       </div>
 
@@ -133,12 +141,44 @@ export default {
       observation: '',
     })
 
+    const normalizeMeasurementType = (measurementType) =>
+      String(measurementType || '')
+        .trim()
+        .toLowerCase()
+
+    const isUnitMeasurement = computed(() => {
+      const measurementType = normalizeMeasurementType(props.selectedSubstance?.measurement_type)
+      return measurementType.includes('unidad') || measurementType.includes('paquete')
+    })
+
+    const totalAvailable = computed(() =>
+      isUnitMeasurement.value
+        ? Number(props.selectedSubstance?.unit_quantity || 0)
+        : Number(props.selectedSubstance?.weight_net ?? props.selectedSubstance?.weight ?? 0),
+    )
+
+    const referenceWeight = computed(() => {
+      const weight = props.selectedSubstance?.weight_net ?? props.selectedSubstance?.weight
+      return weight === null || weight === undefined || weight === '' ? null : Number(weight)
+    })
+
+    const unitLabel = computed(() => (isUnitMeasurement.value ? 'unidades' : 'g'))
+    const samplingLabel = computed(() =>
+      isUnitMeasurement.value ? 'Cantidad a muestrear (unidades)' : 'Peso a muestrear (g)',
+    )
+    const formattedTotalAvailable = computed(() =>
+      isUnitMeasurement.value
+        ? String(Math.trunc(totalAvailable.value))
+        : totalAvailable.value.toFixed(2),
+    )
+
     const isFormValid = computed(() => {
       return (
         formData.value.destination &&
         formData.value.weight_sampled &&
         formData.value.weight_sampled > 0 &&
-        formData.value.weight_sampled <= (props.selectedSubstance?.weight || 0)
+        formData.value.weight_sampled <= totalAvailable.value &&
+        (!isUnitMeasurement.value || Number.isInteger(Number(formData.value.weight_sampled)))
       )
     })
 
@@ -195,6 +235,12 @@ export default {
       isFormValid,
       closeDialog,
       submitForm,
+      isUnitMeasurement,
+      totalAvailable,
+      referenceWeight,
+      unitLabel,
+      samplingLabel,
+      formattedTotalAvailable,
     }
   },
 }
