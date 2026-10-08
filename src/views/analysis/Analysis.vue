@@ -43,7 +43,8 @@
                   :rows="10"
                   :rowsPerPageOptions="[5, 10, 20, 50]"
                   scrollable
-                  class="p-datatable-striped p-datatable-gridlines users-table"
+                  class="p-datatable-striped p-datatable-gridlines users-table analysis-table"
+                  tableStyle="width: max-content; min-width: 100%; table-layout: auto"
                   :loading="loadingAnalysis"
                   dataKey="id"
                   :globalFilterFields="[
@@ -74,7 +75,12 @@
 
                   <template #empty> No se encontraron análisis. </template>
                   <template #loading> Cargando análisis. Por favor espere. </template>
-                  <Column headerStyle="width: 3rem; text-align:center;">
+                  <Column
+                    headerClass="selection-column"
+                    bodyClass="selection-column"
+                    headerStyle="text-align: center"
+                    bodyStyle="text-align: center"
+                  >
                     <template #body="slotProps">
                       <Checkbox
                         :binary="true"
@@ -86,29 +92,59 @@
                       />
                     </template>
                   </Column>
-                  <Column field="id" header="ID" />
-                  <Column field="number_protocol" header="N° Protocolo">
+                  <Column
+                    field="id"
+                    header="ID"
+                    headerClass="compact-column"
+                    bodyClass="compact-column"
+                  />
+                  <Column
+                    field="number_protocol"
+                    header="N° Protocolo"
+                    headerClass="compact-column number-column"
+                    bodyClass="compact-column number-column"
+                  >
                     <template #body="slotProps">
                       {{ slotProps.data.number_protocol ?? '—' }}
                     </template>
                   </Column>
-                  <Column field="preAnalysis.substance.nsubstance" header="N° Sustancia">
+                  <Column
+                    field="preAnalysis.substance.nsubstance"
+                    header="N° Sustancia"
+                    headerClass="compact-column number-column"
+                    bodyClass="compact-column number-column"
+                  >
                     <template #body="slotProps">
                       {{ slotProps.data.preAnalysis?.substance?.nsubstance ?? '—' }}
                     </template>
                   </Column>
-                  <Column field="preAnalysis.reception" header="N° Acta">
+                  <Column
+                    field="preAnalysis.reception"
+                    header="N° Acta"
+                    headerClass="compact-column"
+                    bodyClass="compact-column"
+                  >
                     <template #body="slotProps">
                       #{{ slotProps.data.preAnalysis?.reception?.number || '—' }}
                     </template>
                   </Column>
 
-                  <Column field="preAnalysis.substance" header="Sustancia">
+                  <Column
+                    field="preAnalysis.substance"
+                    header="Sustancia"
+                    headerClass="content-column substance-column"
+                    bodyClass="content-column substance-column"
+                  >
                     <template #body="slotProps">
                       {{ getSubstanceName(slotProps.data.preAnalysis?.substance) }}
                     </template>
                   </Column>
-                  <Column field="result" header="Resultado">
+                  <Column
+                    field="result"
+                    header="Resultado"
+                    headerClass="compact-column"
+                    bodyClass="compact-column"
+                  >
                     <template #body="slotProps">
                       <Tag
                         :value="getAnalysisResult(slotProps.data)"
@@ -116,26 +152,37 @@
                       />
                     </template>
                   </Column>
-                  <Column field="user" header="Analista">
+                  <Column
+                    field="user"
+                    header="Analista"
+                    headerClass="content-column analyst-column"
+                    bodyClass="content-column analyst-column"
+                  >
                     <template #body="slotProps">
-                      {{
-                        (slotProps.data.user?.firstName || '') +
-                        ' ' +
-                        (slotProps.data.user?.lastName || '')
-                      }}
+                      {{ getAnalystFullName(slotProps.data.user) }}
                     </template>
                   </Column>
-                  <Column field="state" header="Estado">
+                  <Column
+                    field="state"
+                    header="Estado"
+                    headerClass="compact-column"
+                    bodyClass="compact-column"
+                  >
                     <template #body="slotProps">
                       {{ slotProps.data.state }}
                     </template>
                   </Column>
-                  <Column field="createdAt" header="Fecha">
+                  <Column
+                    field="createdAt"
+                    header="Fecha"
+                    headerClass="compact-column"
+                    bodyClass="compact-column"
+                  >
                     <template #body="slotProps">
                       {{ formatDate(slotProps.data.createdAt) }}
                     </template>
                   </Column>
-                  <Column header="Acciones">
+                  <Column header="Acciones" headerClass="actions-column" bodyClass="actions-column">
                     <template #body="slotProps">
                       <div class="analysis-actions">
                         <Button
@@ -1310,6 +1357,22 @@ export default {
       return `${police.firstName || ''} ${police.firstLastName || ''}`.trim() || '—'
     }
 
+    const getAnalystFullName = (user) => {
+      if (!user) return '—'
+
+      const firstNames = [user.firstName, user.secondName]
+      const lastNames =
+        user.firstLastName || user.secondLastName
+          ? [user.firstLastName, user.secondLastName]
+          : [user.lastName]
+      const fullName = [...firstNames, ...lastNames]
+        .map((name) => String(name || '').trim())
+        .filter(Boolean)
+        .join(' ')
+
+      return fullName || user.username || '—'
+    }
+
     const getSubstanceName = (substance) => {
       if (!substance) return '—'
       return substance.substanceType?.name || `Sustancia #${substance.id}`
@@ -1405,20 +1468,46 @@ export default {
       if (!data) return ''
       return data.state === 'BORRADOR' ? 'borrador-row' : ''
     }
-    const generatePDF = async (item) => {
-      const reception = item.reception || item?.substance?.reception || null
-      const substance = item.substance || item
+    const generatePDF = async (analysis) => {
+      const reception = analysis?.preAnalysis?.reception || null
 
-      if (!reception) {
+      if (!reception?.id) {
         toast.add({
           severity: 'error',
           summary: 'No se puede generar PDF',
-          detail: 'El pre-análisis no contiene una recepción válida',
+          detail: 'El análisis no contiene una recepción válida',
+          life: 3000,
         })
         return
       }
 
-      generarActaPDF(reception, [substance])
+      try {
+        const [{ data: receptionData }, { data: substancesData }] = await Promise.all([
+          recepcionService.getById(reception.id),
+          substancesService.getByReceptionId(reception.id),
+        ])
+        const substances = substancesData?.content || substancesData || []
+
+        generarActaPDF(
+          { ...receptionData, state: receptionData?.state || reception.state },
+          substances,
+        )
+
+        toast.add({
+          severity: 'success',
+          summary: 'PDF generado',
+          detail: `Acta de recepción #${reception.number || receptionData.number} descargada`,
+          life: 3000,
+        })
+      } catch (error) {
+        console.error('Error generando el PDF de recepción:', error)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudo generar el PDF del acta de recepción',
+          life: 3000,
+        })
+      }
     }
 
     const generateAnalysisReport = (analysis) => {
@@ -1881,6 +1970,15 @@ export default {
 
     const buildAnalysisActionMenu = (analysis, tabKey) => {
       const state = String(analysis?.state || '').toUpperCase()
+      const receptionActions = analysis?.preAnalysis?.reception?.id
+        ? [
+            {
+              label: 'Generar PDF de recepción',
+              icon: 'pi pi-file-pdf',
+              command: () => generatePDF(analysis),
+            },
+          ]
+        : []
 
       if (tabKey === 'isp') {
         const reservedDocuments = []
@@ -1898,10 +1996,10 @@ export default {
             },
           )
         }
-        return reservedDocuments
+        return joinMenuSections([receptionActions, reservedDocuments])
       }
 
-      if (analysis?.preAnalysis?.destination?.id !== 1) return []
+      if (analysis?.preAnalysis?.destination?.id !== 1) return receptionActions
 
       const editActions = []
       if (state !== 'PENDIENTE' && canEditMacroanalysis(analysis)) {
@@ -1926,7 +2024,7 @@ export default {
         })
       }
 
-      const documentActions = []
+      const documentActions = [...receptionActions]
       if (analysis?.micro) {
         documentActions.push({
           label: 'Imprimir microanálisis',
@@ -2205,6 +2303,7 @@ export default {
       onRowExpand,
       onRowCollapse,
       getPoliceName,
+      getAnalystFullName,
       getSubstanceName,
       getAnalysisResult,
       getResultSeverity,
@@ -2299,27 +2398,87 @@ export default {
   background-color: #fff6b8 !important;
 }
 
+.table-container {
+  max-width: 100%;
+}
+
+:deep(.analysis-table .p-datatable-wrapper) {
+  overflow-x: auto;
+}
+
+:deep(.analysis-table .selection-column) {
+  max-width: 2.5rem;
+  min-width: 2.5rem;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+  width: 2.5rem;
+}
+
+:deep(.analysis-table .compact-column) {
+  white-space: nowrap;
+  width: 1%;
+}
+
+:deep(.analysis-table .number-column) {
+  max-width: 5.75rem;
+  min-width: 5.75rem;
+  text-align: center;
+  width: 5.75rem;
+}
+
+:deep(.analysis-table th.number-column) {
+  white-space: normal;
+}
+
+:deep(.analysis-table .content-column) {
+  line-height: 1.35;
+  max-width: 14rem;
+  min-width: 8rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  width: 1%;
+}
+
+:deep(.analysis-table .analyst-column) {
+  max-width: none;
+  min-width: 16rem;
+  white-space: nowrap;
+  width: auto;
+}
+
+:deep(.analysis-table .substance-column) {
+  max-width: 18rem;
+  min-width: 12rem;
+  width: 15rem;
+}
+
+:deep(.analysis-table .actions-column) {
+  white-space: nowrap;
+  width: 1%;
+}
+
 .analysis-actions {
   align-items: center;
   display: flex;
   gap: 0.35rem;
   justify-content: flex-start;
-  min-width: 12.5rem;
+  width: max-content;
 }
 
 .primary-analysis-action {
   justify-content: center;
-  min-width: 10.5rem;
   white-space: nowrap;
 }
 
 @media (max-width: 768px) {
-  .analysis-actions {
-    min-width: auto;
+  :deep(.analysis-table .content-column) {
+    max-width: 11rem;
   }
 
-  .primary-analysis-action {
-    min-width: auto;
+  :deep(.analysis-table .substance-column) {
+    max-width: 14rem;
+    min-width: 10rem;
+    width: 12rem;
   }
 }
 </style>

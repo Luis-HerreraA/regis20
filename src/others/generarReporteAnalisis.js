@@ -52,6 +52,14 @@ const parseHtmlToTextSegments = (html) => {
   return segments
 }
 
+const usesUnitMeasurement = (measurementType) => {
+  const normalizedType = String(measurementType || '')
+    .trim()
+    .toLowerCase()
+
+  return normalizedType.includes('unidad') || normalizedType.includes('paquete')
+}
+
 /**
  * Genera el reporte de análisis en PDF según la plantilla oficial
  * @param {Object} analysis - Datos del análisis completo
@@ -102,8 +110,13 @@ export const generarReporteAnalisisPDF = (
   doc.setFont('helvetica', 'normal')
 
   const receptionNumber = analysis.preAnalysis?.reception?.number || 'N/A'
-  const sampleWeight = analysis.preAnalysis?.weight_sampled || 0
-  const totalWeight = analysis.preAnalysis?.substance?.weight_net || 0
+  const substance = analysis.preAnalysis?.substance
+  const isUnitMeasurement = usesUnitMeasurement(substance?.measurement_type)
+  const receivedForAnalysis = analysis.preAnalysis?.weight_sampled ?? 0
+  const totalReceived = isUnitMeasurement
+    ? (substance?.unit_quantity ?? substance?.unity_quantity ?? 0)
+    : (substance?.weight_net ?? 0)
+  const totalReceivedUnit = isUnitMeasurement ? 'unidades' : 'gr'
   const receptionDate =
     analysis.preAnalysis?.reception?.date_reception || new Date().toISOString().split('T')[0]
 
@@ -112,11 +125,11 @@ export const generarReporteAnalisisPDF = (
 
   yPos += 6
   doc.text('CANTIDAD RECEPCIONADA PARA ANÁLISIS', margin, yPos)
-  doc.text(`: ${sampleWeight} gr`, margin + 90, yPos)
+  doc.text(`: ${receivedForAnalysis} gr`, margin + 90, yPos)
 
   yPos += 6
   doc.text('CANTIDAD RECEPCIONADA', margin, yPos)
-  doc.text(`: ${totalWeight} gr`, margin + 90, yPos)
+  doc.text(`: ${totalReceived} ${totalReceivedUnit}`, margin + 90, yPos)
 
   yPos += 6
   doc.text('FECHA DE RECEPCIÓN', margin, yPos)
