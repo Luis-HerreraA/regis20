@@ -641,12 +641,12 @@ export default {
         return false
       }
 
-      // Permitir seleccionar si el destino NO es 1 (Exterior/ISP)
-      if (row.preAnalysis?.destination?.id !== 1) {
+      // Las sustancias que no son Cannabis siguen el flujo Exterior/ISP.
+      if (!isCannabisAnalysis(row)) {
         return true
       }
 
-      // Para destino 1 (Interior), aplicar la lógica original
+      // Cannabis sigue el flujo local aunque el destino histórico sea ISP.
       const current = selectedAnalysisActNumber.value
       const rowAct = getActNumber(row)
       const isCompleted = (row.state || '').toUpperCase() === 'COMPLETADO'
@@ -682,12 +682,12 @@ export default {
 
     const hasOnlyInteriorDestination = computed(() => {
       if (selectedAnalysis.value.length === 0) return false
-      return selectedAnalysis.value.every((analysis) => analysis.preAnalysis?.destination?.id === 1)
+      return selectedAnalysis.value.every(isCannabisAnalysis)
     })
 
     const hasOnlyExteriorDestination = computed(() => {
       if (selectedAnalysis.value.length === 0) return false
-      return selectedAnalysis.value.every((analysis) => analysis.preAnalysis?.destination?.id !== 1)
+      return selectedAnalysis.value.every((analysis) => !isCannabisAnalysis(analysis))
     })
 
     const toggleAnalysisSelection = (row) => {
@@ -735,8 +735,8 @@ export default {
         selectedAnalysis.value.push(row)
       }
 
-      // Solo actualizar el acta number si no es un análisis de ISP
-      if (row.preAnalysis?.destination?.id === 1) {
+      // Solo actualizar el número de acta para el flujo local de Cannabis.
+      if (isCannabisAnalysis(row)) {
         if (selectedAnalysis.value.length === 0) {
           selectedAnalysisActNumber.value = null
         } else if (selectedAnalysis.value.length === 1) {
@@ -1903,7 +1903,7 @@ export default {
         return { key: 'documents', label: 'Documentos', icon: 'pi pi-paperclip', severity: 'info' }
       }
 
-      if (analysis?.preAnalysis?.destination?.id !== 1) return null
+      if (!isCannabisAnalysis(analysis)) return null
 
       switch (String(analysis?.state || '').toUpperCase()) {
         case 'PENDIENTE':
@@ -1999,7 +1999,7 @@ export default {
         return joinMenuSections([receptionActions, reservedDocuments])
       }
 
-      if (analysis?.preAnalysis?.destination?.id !== 1) return receptionActions
+      if (!isCannabisAnalysis(analysis)) return receptionActions
 
       const editActions = []
       if (state !== 'PENDIENTE' && canEditMacroanalysis(analysis)) {
