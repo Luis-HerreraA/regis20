@@ -698,8 +698,9 @@ export default {
           destination: formData.destination,
           weight_sampled: formData.weight_sampled,
           weightContra: 0,
-          weightDestruction:
-            getSubstanceTotalAvailable(selectedSubstance.value) - Number(formData.weight_sampled),
+          weightDestruction: isUnitMeasurementType(selectedSubstance.value?.measurement_type)
+            ? getDestructionAvailable(selectedSubstance.value)
+            : getDestructionAvailable(selectedSubstance.value) - Number(formData.weight_sampled),
           methodDestruction: formData.methodDestruction,
           observation: formData.observation,
           user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -834,9 +835,12 @@ export default {
     }
 
     const getSubstanceTotalAvailable = (substance) =>
+      Number(substance?.weight_net ?? substance?.weight ?? 0)
+
+    const getDestructionAvailable = (substance) =>
       isUnitMeasurementType(substance?.measurement_type)
         ? Number(substance?.unit_quantity || 0)
-        : Number(substance?.weight_net ?? substance?.weight ?? 0)
+        : getSubstanceTotalAvailable(substance)
 
     const closeBulkDialog = () => {
       showBulkPreAnalysisDialog.value = false
@@ -858,8 +862,10 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const totalAvailable = getSubstanceTotalAvailable(substance)
-            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
+            const destructionAvailable = getDestructionAvailable(substance)
+            const restante = isUnitMeasurementType(substance?.measurement_type)
+              ? destructionAvailable
+              : destructionAvailable - Number(sampleWeight || 0) - contraWeight
             return sum + (restante > 0 ? restante : 0)
           }, 0)
 
@@ -891,17 +897,14 @@ export default {
             const contraWeight = Number(indiv.contra) || 0
             const isUnitBalance = isUnitMeasurementType(substance?.measurement_type)
             const totalAvailable = getSubstanceTotalAvailable(substance)
-            const restante = totalAvailable - Number(sampleWeight || 0) - contraWeight
+            const destructionAvailable = getDestructionAvailable(substance)
+            const restante = isUnitBalance
+              ? destructionAvailable
+              : destructionAvailable - Number(sampleWeight || 0) - contraWeight
 
             if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
             if (Number(sampleWeight) + contraWeight > totalAvailable)
               throw new Error('La suma de muestra y contramuestra excede el total disponible')
-            if (
-              isUnitBalance &&
-              (!Number.isInteger(Number(sampleWeight)) || !Number.isInteger(contraWeight))
-            )
-              throw new Error('Las cantidades en unidades deben ser números enteros')
-
             // 1) Crear pre-análisis (va a análisis)
             const payloadPre = {
               substance: substance,
@@ -945,10 +948,8 @@ export default {
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
-                  measurement_type: isUnitBalance
-                    ? substance?.measurement_type || 'UNIDADES'
-                    : 'GRAMOS',
-                  unit_quantity: isUnitBalance ? contraWeight : null,
+                  measurement_type: 'GRAMOS',
+                  unit_quantity: null,
                   description: '',
                   substance: substance,
                   storageLocation: { id: 1 },

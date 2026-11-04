@@ -562,17 +562,7 @@ export default {
       }
     }
 
-    const getSampledFieldLabel = (substance) => {
-      const measurementType = String(substance?.measurement_type || '')
-        .trim()
-        .toLowerCase()
-
-      if (measurementType.includes('unidad') || measurementType.includes('paquete')) {
-        return 'Cantidad muestreada (und)'
-      }
-
-      return 'Peso muestreado (g)'
-    }
+    const getSampledFieldLabel = () => 'Peso muestreado (g)'
 
     return {
       visible,
