@@ -280,9 +280,9 @@
                     </template>
                   </Column>
 
-                  <Column field="weight_sampled" header="Peso(gr)">
+                  <Column field="weight_sampled" header="Cantidad muestreada">
                     <template #body="slotProps">
-                      {{ slotProps.data.weight_sampled ?? '—' }}
+                      {{ slotProps.data.weight_sampled ?? '—' }} {{ getSamplingUnitLabel(slotProps.data.substance) }}
                     </template>
                   </Column>
 
@@ -390,6 +390,12 @@ import destructionDetailsService from '@/services/destructionDetailsService.js'
 
 import PreAnalysisDialog from '@/components/preanalysis/PreAnalysisDialog.vue'
 import BulkPreAnalysisDialog from '@/components/preanalysis/BulkPreAnalysisDialog.vue'
+import {
+  getDestructionAvailable,
+  getSampleMeasurementType,
+  getSamplingAvailable,
+  isUnitMeasurement,
+} from '@/utils/sampleMeasurement'
 export default {
   name: 'PreAnalysisView',
   components: {
@@ -454,11 +460,15 @@ export default {
     // Computed para validar el formulario individual
     const isPreAnalysisFormValid = computed(() => {
       const totalAvailable = getSubstanceTotalAvailable(selectedSubstance.value)
+      const sampleAmount = Number(preAnalysisData.value.weight_sampled)
+      const requiresWholeUnits = isUnitMeasurement(
+        getSampleMeasurementType(selectedSubstance.value, 'sampling'),
+      )
       return (
         preAnalysisData.value.destination &&
-        preAnalysisData.value.weight_sampled &&
-        preAnalysisData.value.weight_sampled > 0 &&
-        preAnalysisData.value.weight_sampled <= totalAvailable
+        sampleAmount > 0 &&
+        sampleAmount <= totalAvailable &&
+        (!requiresWholeUnits || Number.isInteger(sampleAmount))
       )
     })
 
@@ -692,15 +702,24 @@ export default {
     const sendToPreAnalysis = async (formData) => {
       try {
         isSendingToPreAnalysis.value = true
+        const samplingIsUnits = isUnitMeasurement(
+          getSampleMeasurementType(selectedSubstance.value, 'sampling'),
+        )
+        const destructionIsUnits = isUnitMeasurement(
+          getSampleMeasurementType(selectedSubstance.value, 'destruction'),
+        )
+        const destructionAvailable = getDestructionAvailable(selectedSubstance.value)
         const payload = {
           substance: selectedSubstance.value,
           reception: { id: selectedReception.value.id },
           destination: formData.destination,
           weight_sampled: formData.weight_sampled,
           weightContra: 0,
-          weightDestruction: isUnitMeasurementType(selectedSubstance.value?.measurement_type)
-            ? getDestructionAvailable(selectedSubstance.value)
-            : getDestructionAvailable(selectedSubstance.value) - Number(formData.weight_sampled),
+          weightDestruction: destructionIsUnits
+            ? samplingIsUnits
+              ? destructionAvailable - Number(formData.weight_sampled)
+              : destructionAvailable
+            : destructionAvailable - Number(formData.weight_sampled),
           methodDestruction: formData.methodDestruction,
           observation: formData.observation,
           user: { id: parseInt(localStorage.getItem('user_id')) || 1 },
@@ -823,24 +842,9 @@ export default {
       showBulkPreAnalysisDialog.value = true
     }
 
-    const isUnitMeasurementType = (measurementType) => {
-      const normalizedMeasurementType = String(measurementType || '')
-        .trim()
-        .toLowerCase()
-
-      return (
-        normalizedMeasurementType.includes('unidad') ||
-        normalizedMeasurementType.includes('paquete')
-      )
-    }
-
-    const getSubstanceTotalAvailable = (substance) =>
-      Number(substance?.weight_net ?? substance?.weight ?? 0)
-
-    const getDestructionAvailable = (substance) =>
-      isUnitMeasurementType(substance?.measurement_type)
-        ? Number(substance?.unit_quantity || 0)
-        : getSubstanceTotalAvailable(substance)
+    const getSubstanceTotalAvailable = (substance) => getSamplingAvailable(substance)
+    const getSamplingUnitLabel = (substance) =>
+      isUnitMeasurement(getSampleMeasurementType(substance, 'sampling')) ? 'unidades' : 'gramos'
 
     const closeBulkDialog = () => {
       showBulkPreAnalysisDialog.value = false
@@ -863,8 +867,16 @@ export default {
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
             const destructionAvailable = getDestructionAvailable(substance)
-            const restante = isUnitMeasurementType(substance?.measurement_type)
-              ? destructionAvailable
+            const samplingIsUnits = isUnitMeasurement(
+              getSampleMeasurementType(substance, 'sampling'),
+            )
+            const destructionIsUnits = isUnitMeasurement(
+              getSampleMeasurementType(substance, 'destruction'),
+            )
+            const restante = destructionIsUnits
+              ? samplingIsUnits
+                ? destructionAvailable - Number(sampleWeight || 0) - contraWeight
+                : destructionAvailable
               : destructionAvailable - Number(sampleWeight || 0) - contraWeight
             return sum + (restante > 0 ? restante : 0)
           }, 0)
@@ -895,7 +907,10 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const isUnitBalance = isUnitMeasurementType(substance?.measurement_type)
+            const samplingMeasurementType = getSampleMeasurementType(substance, 'sampling')
+            const destructionMeasurementType = getSampleMeasurementType(substance, 'destruction')
+            const isUnitSampling = isUnitMeasurement(samplingMeasurementType)
+            const isUnitBalance = isUnitMeasurement(destructionMeasurementType)
             const totalAvailable = getSubstanceTotalAvailable(substance)
             const destructionAvailable = getDestructionAvailable(substance)
             const restante = isUnitBalance
@@ -905,6 +920,8 @@ export default {
             if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
             if (Number(sampleWeight) + contraWeight > totalAvailable)
               throw new Error('La suma de muestra y contramuestra excede el total disponible')
+            if (isUnitSampling && (!Number.isInteger(Number(sampleWeight)) || !Number.isInteger(contraWeight)))
+              throw new Error('Las cantidades de muestreo deben ser unidades enteras')
             // 1) Crear pre-análisis (va a análisis)
             const payloadPre = {
               substance: substance,
@@ -948,8 +965,8 @@ export default {
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
-                  measurement_type: 'GRAMOS',
-                  unit_quantity: null,
+                  measurement_type: samplingMeasurementType,
+                  unit_quantity: isUnitSampling ? contraWeight : null,
                   description: '',
                   substance: substance,
                   storageLocation: { id: 1 },
@@ -965,9 +982,7 @@ export default {
                 const destructionDetailPayload = {
                   state: 'PENDIENTE',
                   weight: restante,
-                  measurement_type: isUnitBalance
-                    ? substance?.measurement_type || 'UNIDADES'
-                    : 'GRAMOS',
+                  measurement_type: destructionMeasurementType,
                   unit_quantity: isUnitBalance ? restante : null,
                   destructionHeader: destructionHeader,
                   substance: substance,
@@ -1240,6 +1255,7 @@ export default {
       selectedPreAnalysis,
 
       isRowSelectable,
+      getSamplingUnitLabel,
       rowClassPreAnalysis,
       onSubstanceSelect,
       onSubstanceUnselect,

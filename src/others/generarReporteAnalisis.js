@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { addDraftWatermark, openPdfPreview } from '@/others/pdfPreview.js'
+import { getSampleMeasurementType, isUnitMeasurement } from '@/utils/sampleMeasurement'
 
 /**
  * Convierte HTML a texto plano con formato para jsPDF
@@ -111,12 +112,13 @@ export const generarReporteAnalisisPDF = (
 
   const receptionNumber = analysis.preAnalysis?.reception?.number || 'N/A'
   const substance = analysis.preAnalysis?.substance
-  const isUnitMeasurement = usesUnitMeasurement(substance?.measurement_type)
+  const isUnitReception = usesUnitMeasurement(substance?.measurement_type)
+  const isUnitSample = isUnitMeasurement(getSampleMeasurementType(substance, 'sampling'))
   const receivedForAnalysis = analysis.preAnalysis?.weight_sampled ?? 0
-  const totalReceived = isUnitMeasurement
+  const totalReceived = isUnitReception
     ? (substance?.unit_quantity ?? substance?.unity_quantity ?? 0)
     : (substance?.weight_net ?? 0)
-  const totalReceivedUnit = isUnitMeasurement ? 'unidades' : 'gr'
+  const totalReceivedUnit = isUnitReception ? 'unidades' : 'gr'
   const receptionDate =
     analysis.preAnalysis?.reception?.date_reception || new Date().toISOString().split('T')[0]
 
@@ -125,7 +127,7 @@ export const generarReporteAnalisisPDF = (
 
   yPos += 6
   doc.text('CANTIDAD RECEPCIONADA PARA ANÁLISIS', margin, yPos)
-  doc.text(`: ${receivedForAnalysis} gr`, margin + 90, yPos)
+  doc.text(`: ${receivedForAnalysis} ${isUnitSample ? 'unidades' : 'gr'}`, margin + 90, yPos)
 
   yPos += 6
   doc.text('CANTIDAD RECEPCIONADA', margin, yPos)

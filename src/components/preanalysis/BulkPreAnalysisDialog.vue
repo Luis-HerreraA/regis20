@@ -82,7 +82,7 @@
                 <strong>{{ substance.substanceType?.name }}</strong>
               </div>
               <div class="text-xs text-500">
-                Disponible para muestreo: {{ formatTotalAvailable(substance) }} g
+                Disponible para muestreo: {{ formatTotalAvailable(substance) }} {{ getSamplingUnitLabel(substance) }}
               </div>
               <div v-if="!hasAvailableBalance(substance)" class="text-xs text-red-500 mt-1">
                 Debe registrar una cantidad disponible para procesar esta sustancia.
@@ -90,7 +90,7 @@
             </div>
 
             <div style="width: 120px">
-              <label class="text-xs">Muestra (g)</label>
+              <label class="text-xs">Muestra ({{ getSamplingUnitLabel(substance) }})</label>
               <InputNumber
                 v-model="formData.individualWeights[substance.id].sample"
                 mode="decimal"
@@ -99,15 +99,16 @@
                 decimalSeparator="."
                 :useGrouping="false"
                 placeholder="Muestra"
-                :minFractionDigits="1"
-                :maxFractionDigits="2"
+                :minFractionDigits="isUnitSampling(substance) ? 0 : 1"
+                :maxFractionDigits="isUnitSampling(substance) ? 0 : 2"
+                :step="isUnitSampling(substance) ? 1 : 0.1"
                 :disabled="!canSample(substance)"
                 style="width: 120px"
               />
             </div>
 
             <div style="width: 140px">
-              <label class="text-xs">Contramuestra (g)</label>
+              <label class="text-xs">Contramuestra ({{ getSamplingUnitLabel(substance) }})</label>
               <InputNumber
                 v-model="formData.individualWeights[substance.id].contra"
                 mode="decimal"
@@ -116,8 +117,9 @@
                 decimalSeparator="."
                 :useGrouping="false"
                 placeholder="Contramuestra"
-                :minFractionDigits="1"
-                :maxFractionDigits="2"
+                :minFractionDigits="isUnitSampling(substance) ? 0 : 1"
+                :maxFractionDigits="isUnitSampling(substance) ? 0 : 2"
+                :step="isUnitSampling(substance) ? 1 : 0.1"
                 :disabled="!canSample(substance)"
                 style="width: 120px"
               />
@@ -155,6 +157,12 @@ import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import Chip from 'primevue/chip'
 import InputNumber from 'primevue/inputnumber'
+import {
+  getDestructionAvailable,
+  getSampleMeasurementType,
+  getSamplingAvailable,
+  isUnitMeasurement,
+} from '@/utils/sampleMeasurement'
 
 export default {
   name: 'BulkPreAnalysisDialog',
@@ -199,29 +207,11 @@ export default {
 
     const showIndividualWeights = computed(() => true)
 
-    const normalizeMeasurementType = (measurementType) =>
-      String(measurementType || '')
-        .trim()
-        .toLowerCase()
-
-    const isUnitMeasurementType = (measurementType) => {
-      const normalizedMeasurementType = normalizeMeasurementType(measurementType)
-      return (
-        normalizedMeasurementType.includes('unidad') ||
-        normalizedMeasurementType.includes('paquete')
-      )
-    }
-
-    const isUnitMeasurement = (substance) => isUnitMeasurementType(substance?.measurement_type)
-
-    const getTotalAvailable = (substance) =>
-      Number(substance?.weight_net ?? substance?.weight ?? 0)
-
-    const getDestructionAvailable = (substance) =>
-      isUnitMeasurement(substance)
-        ? Number(substance?.unit_quantity || 0)
-        : getTotalAvailable(substance)
-
+    const isUnitSampling = (substance) =>
+      isUnitMeasurement(getSampleMeasurementType(substance, 'sampling'))
+    const isUnitDestruction = (substance) =>
+      isUnitMeasurement(getSampleMeasurementType(substance, 'destruction'))
+    const getTotalAvailable = (substance) => getSamplingAvailable(substance)
     const hasAvailableBalance = (substance) => getTotalAvailable(substance) > 0
 
     const canSample = (substance) => hasAvailableBalance(substance)
@@ -230,8 +220,11 @@ export default {
 
     const formatTotalAvailable = (substance) => {
       const total = getTotalAvailable(substance)
-      return total.toFixed(2)
+      return isUnitSampling(substance) ? String(Math.trunc(total)) : total.toFixed(2)
     }
+
+    const getSamplingUnitLabel = (substance) =>
+      isUnitSampling(substance) ? 'unidades' : 'gramos'
 
     const isFormValid = computed(() => {
       if (!formData.value.destination) return false
@@ -253,7 +246,10 @@ export default {
 
         const totalAvailable = getTotalAvailable(substance)
 
-        const amountsAreValid = sample > 0 && contra >= 0 && sample + contra <= totalAvailable
+        const isIntegerAmount = !isUnitSampling(substance) ||
+          (Number.isInteger(sample) && Number.isInteger(contra))
+        const amountsAreValid =
+          isIntegerAmount && sample > 0 && contra >= 0 && sample + contra <= totalAvailable
         return amountsAreValid
       })
     })
@@ -319,12 +315,15 @@ export default {
       const obj = formData.value.individualWeights[substance.id] || {}
       const sample = Number(obj.sample || 0)
       const contra = Number(obj.contra || 0)
-      const restante = isUnitMeasurement(substance)
-        ? getDestructionAvailable(substance)
-        : getDestructionAvailable(substance) - sample - contra
+      const destructionAvailable = getDestructionAvailable(substance)
+      const restante = isUnitDestruction(substance)
+        ? isUnitSampling(substance)
+          ? destructionAvailable - sample - contra
+          : destructionAvailable
+        : destructionAvailable - sample - contra
 
       const normalizedRestante = restante > 0 ? restante : 0
-      return isUnitMeasurement(substance)
+      return isUnitDestruction(substance)
         ? `${Math.trunc(normalizedRestante)} unidades`
         : `${normalizedRestante.toFixed(2)} g`
     }
@@ -336,7 +335,8 @@ export default {
       closeDialog,
       submitForm,
       computeRestante,
-      isUnitMeasurement,
+      isUnitSampling,
+      getSamplingUnitLabel,
       hasAvailableBalance,
       canSample,
       getSamplingMax,

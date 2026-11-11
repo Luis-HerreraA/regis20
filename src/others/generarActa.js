@@ -122,7 +122,7 @@ export const generarActaPDF = async (form) => {
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
-  doc.text(`N° Informe Oficial: ${form.nparte || '—'}`, 195, 58, { align: 'right' })
+  doc.text(`N° parte/informe: ${form.nparte || '—'}`, 195, 58, { align: 'right' })
   doc.setFont('helvetica', 'normal')
 
   autoTable(doc, {

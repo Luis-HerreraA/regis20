@@ -59,7 +59,10 @@
                   <label class="muted">{{
                     getSampledFieldLabel(form.preAnalysis?.substance)
                   }}</label>
-                  <div class="value">{{ form.preAnalysis?.weight_sampled ?? '—' }}</div>
+                  <div class="value">
+                    {{ form.preAnalysis?.weight_sampled ?? '—' }}
+                    {{ getSampledUnitLabel(form.preAnalysis?.substance) }}
+                  </div>
                 </div>
                 <div class="field small">
                   <label class="muted">Sustancia</label>
@@ -263,6 +266,7 @@ import analysisHistoryService from '@/services/analysisHistoryService.js'
 import analysisService from '@/services/analysisService'
 import { generarReporteAnalisisPDF } from '@/others/generarReporteAnalisis.js'
 import { getHistoryChanges } from '@/utils/analysisHistory.js'
+import { getSampleMeasurementType, isUnitMeasurement } from '@/utils/sampleMeasurement'
 
 export default {
   name: 'CompleteAnalysis',
@@ -562,7 +566,10 @@ export default {
       }
     }
 
-    const getSampledFieldLabel = () => 'Peso muestreado (g)'
+    const getSampledUnitLabel = (substance) =>
+      isUnitMeasurement(getSampleMeasurementType(substance, 'sampling')) ? 'unidades' : 'gramos'
+    const getSampledFieldLabel = (substance) =>
+      `Cantidad muestreada (${getSampledUnitLabel(substance)})`
 
     return {
       visible,
@@ -578,6 +585,7 @@ export default {
       submit,
       stateSeverity,
       getSampledFieldLabel,
+      getSampledUnitLabel,
       isSaving,
       isPreviewing,
       previewReport,

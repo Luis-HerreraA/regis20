@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import reservedsService from '@/services/reservedsService.js'
 import { addDraftWatermark, openPdfPreview } from '@/others/pdfPreview.js'
+import { getSampleMeasurementType, isUnitMeasurement } from '@/utils/sampleMeasurement'
 
 /**
  * Genera un documento de reservado para un análisis con números de Fiscalía Local e ISP
@@ -154,10 +155,15 @@ export const generarReservadoPDF = async (
       const substanceName =
         analysisItem.analysis.preAnalysis?.substance?.substanceType?.name || 'N/A'
       const weight = analysisItem.analysis.preAnalysis?.weight_sampled || 0
+      const sampleUnit = isUnitMeasurement(
+        getSampleMeasurementType(analysisItem.analysis.preAnalysis?.substance, 'sampling'),
+      )
+        ? 'unidades'
+        : 'gr'
       doc.text(`MUESTRA N° ${index + 1}: `, margin + 30, yPos)
 
       doc.setFont('helvetica', 'normal')
-      doc.text(`${weight} gr - ${substanceName}`, margin + 60, yPos)
+      doc.text(`${weight} ${sampleUnit} - ${substanceName}`, margin + 60, yPos)
       yPos += 8
     })
   } else {
@@ -372,10 +378,15 @@ export const generarReservadoFiscaliaPDF = async (
       const substanceName =
         analysisItem.analysis?.preAnalysis?.substance?.substanceType?.name || 'N/A'
       const weight = analysisItem.analysis?.preAnalysis?.weight_sampled || 0
+      const sampleUnit = isUnitMeasurement(
+        getSampleMeasurementType(analysisItem.analysis?.preAnalysis?.substance, 'sampling'),
+      )
+        ? 'unidades'
+        : 'gr'
       doc.text(`MUESTRA N° ${index + 1}: `, margin + 30, yPos)
 
       doc.setFont('helvetica', 'normal')
-      doc.text(`${weight} gr - ${substanceName}`, margin + 60, yPos)
+      doc.text(`${weight} ${sampleUnit} - ${substanceName}`, margin + 60, yPos)
       yPos += 8
     })
   } else {

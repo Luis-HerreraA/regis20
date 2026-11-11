@@ -218,6 +218,7 @@
               optionValue="id"
               placeholder="Seleccione sustancia"
               class="w-full"
+              @change="applyTypeMeasurement"
               :filter="true"
             />
           </div>
@@ -245,7 +246,11 @@
               mode="decimal"
               :maxFractionDigits="2"
               class="w-full"
+              :disabled="hasConfiguredSampleMeasurement(selectedSubstanceType)"
             />
+            <small v-if="hasConfiguredSampleMeasurement(selectedSubstanceType)" class="text-500">
+              Unidad definida por tipo de muestra: {{ getSampleMeasurementType(selectedSubstanceType, 'reception').toLowerCase() }}.
+            </small>
           </div>
 
           <div class="field col-12 md:col-2">
@@ -493,6 +498,10 @@ import locationsService from '@/services/locationsService'
 import substancesTypesService from '@/services/substancesTypesService'
 import gradesService from '@/services/gradesService'
 import receptionsHistoryService from '@/services/receptionsHistoryService'
+import {
+  getSampleMeasurementType,
+  hasConfiguredSampleMeasurement,
+} from '@/utils/sampleMeasurement'
 
 export default {
   name: 'EditReception',
@@ -612,12 +621,33 @@ export default {
       { label: 'Unidades', value: 'UNIDADES' },
     ]
 
+    const selectedSubstanceType = computed(() => {
+      const typeId = editingSubstance.substanceType?.id ?? editingSubstance.substanceType
+      return substancesTypes.value.find((type) => String(type.id) === String(typeId))
+    })
+
+    const applyTypeMeasurement = () => {
+      if (hasConfiguredSampleMeasurement(selectedSubstanceType.value)) {
+        editingSubstance.measurement_type = getSampleMeasurementType(
+          selectedSubstanceType.value,
+          'reception',
+        )
+      }
+    }
+
     const normalizeValue = (value) =>
       String(value || '')
         .trim()
         .toLowerCase()
 
     const getResolvedMeasurementType = (substance) => {
+      const typeId = substance.substanceType?.id ?? substance.substanceType
+      const substanceType =
+        substancesTypes.value.find((type) => String(type.id) === String(typeId)) ||
+        (typeof substance.substanceType === 'object' ? substance.substanceType : null)
+      if (hasConfiguredSampleMeasurement(substanceType)) {
+        return getSampleMeasurementType(substanceType, 'reception')
+      }
       if (normalizeValue(substance.measurement_type) === 'otros') {
         return String(substance.other_unity || '').trim()
       }
@@ -1131,6 +1161,7 @@ export default {
 
     // agregar o actualizar la substancia temporal (desde el pequeño formulario de sustancia)
     const applyEditingSubstance = () => {
+      applyTypeMeasurement()
       if (!validateSubstanceData(editingSubstance)) return false
 
       const resolvedMeasurementType = getResolvedMeasurementType(editingSubstance)
@@ -1200,6 +1231,7 @@ export default {
       editingSubstance.unity = s.unity ?? null
       editingSubstance.other_unity = ''
       editingSubstance.substanceType = s.substanceType ?? null
+      applyTypeMeasurement()
       editingSubstance.packaging = DEFAULT_PACKAGING_ID
       editingSubstance.commune = s.commune ?? null
       editingSubstance.reception = form
@@ -1652,6 +1684,10 @@ export default {
       editingSubstance,
       editingSubstanceIndex,
       unityOptions,
+      selectedSubstanceType,
+      applyTypeMeasurement,
+      getSampleMeasurementType,
+      hasConfiguredSampleMeasurement,
       isUnitMeasurement,
       isEditingSubstanceValid,
       openDialog,

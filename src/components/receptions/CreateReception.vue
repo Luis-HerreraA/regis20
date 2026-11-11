@@ -164,6 +164,7 @@
                 placeholder="Seleccione sustancia"
                 class="w-full"
                 :filter="true"
+                @change="applyTypeMeasurement"
               />
             </div>
           </div>
@@ -180,7 +181,11 @@
                 placeholder="Seleccione tipo de medición"
                 class="w-full"
                 :filter="true"
+                :disabled="hasConfiguredSampleMeasurement(selectedSubstanceType)"
               />
+              <small v-if="hasConfiguredSampleMeasurement(selectedSubstanceType)" class="text-500">
+                Unidad definida por tipo de muestra: {{ getSampleMeasurementType(selectedSubstanceType, 'reception').toLowerCase() }}.
+              </small>
             </div>
 
             <div class="field col-12 md:col-2">
@@ -374,6 +379,10 @@ import substancesTypesService from '@/services/substancesTypesService'
 import gradesService from '@/services/gradesService'
 import preAnalysisService from '@/services/preAnalysisService'
 import { generarActaPDF } from '@/others/generarActa'
+import {
+  getSampleMeasurementType,
+  hasConfiguredSampleMeasurement,
+} from '@/utils/sampleMeasurement'
 
 export default {
   name: 'RecepcionComponent',
@@ -470,6 +479,19 @@ export default {
       //  { label: 'Otros', value: 'OTROS' },
     ]
 
+    const selectedSubstanceType = computed(() =>
+      substancesTypes.value.find((type) => String(type.id) === String(newSubstance.substanceType)),
+    )
+
+    const applyTypeMeasurement = () => {
+      if (hasConfiguredSampleMeasurement(selectedSubstanceType.value)) {
+        newSubstance.measurement_type = getSampleMeasurementType(
+          selectedSubstanceType.value,
+          'reception',
+        )
+      }
+    }
+
     const normalizeValue = (value) =>
       String(value || '')
         .trim()
@@ -484,6 +506,13 @@ export default {
     }
 
     const getResolvedMeasurementType = (substance) => {
+      const typeId = substance.substanceType?.id ?? substance.substanceType
+      const substanceType =
+        substancesTypes.value.find((type) => String(type.id) === String(typeId)) ||
+        (typeof substance.substanceType === 'object' ? substance.substanceType : null)
+      if (hasConfiguredSampleMeasurement(substanceType)) {
+        return getSampleMeasurementType(substanceType, 'reception')
+      }
       if (normalizeValue(substance.measurement_type) === 'otros') {
         return String(substance.other_unity || '').trim()
       }
@@ -870,6 +899,7 @@ export default {
       if (!isNewSubstanceValid.value) return
 
       if (!validateSubstanceData(newSubstance)) return
+      applyTypeMeasurement()
 
       // Asignar número correlativo a la sustancia
       const nsubstance = form.substances.length + 1
@@ -1252,6 +1282,10 @@ export default {
       isNewPolice,
       newSubstance,
       unityOptions,
+      selectedSubstanceType,
+      applyTypeMeasurement,
+      getSampleMeasurementType,
+      hasConfiguredSampleMeasurement,
       isUnitMeasurement,
       isUnitMeasurementType,
       isNewSubstanceValid,

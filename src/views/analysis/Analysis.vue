@@ -435,6 +435,12 @@ import MicroanalysisDialog from '@/components/analysis/MicroanalysisDialog.vue'
 import ChemicalTestDialog from '@/components/analysis/ChemicalTestDialog.vue'
 import AnalysisHistoryDialog from '@/components/analysis/AnalysisHistoryDialog.vue'
 import AnalysisDocumentDialog from '@/components/analysis/AnalysisDocumentDialog.vue'
+import {
+  getDestructionAvailable,
+  getSampleMeasurementType,
+  getSamplingAvailable,
+  isUnitMeasurement,
+} from '@/utils/sampleMeasurement'
 export default {
   name: 'PreAnalysisView',
   components: {
@@ -752,11 +758,15 @@ export default {
     // Computed para validar el formulario individual
     const isPreAnalysisFormValid = computed(() => {
       const totalAvailable = getSubstanceTotalAvailable(selectedSubstance.value)
+      const sampleAmount = Number(preAnalysisData.value.weight_sampled)
+      const requiresWholeUnits = isUnitMeasurement(
+        getSampleMeasurementType(selectedSubstance.value, 'sampling'),
+      )
       return (
         preAnalysisData.value.destination &&
-        preAnalysisData.value.weight_sampled &&
-        preAnalysisData.value.weight_sampled > 0 &&
-        preAnalysisData.value.weight_sampled <= totalAvailable
+        sampleAmount > 0 &&
+        sampleAmount <= totalAvailable &&
+        (!requiresWholeUnits || Number.isInteger(sampleAmount))
       )
     })
 
@@ -765,24 +775,7 @@ export default {
       return !bulkPreAnalysisData.value.useAutoWeight
     })
 
-    const isUnitMeasurementType = (measurementType) => {
-      const normalizedMeasurementType = String(measurementType || '')
-        .trim()
-        .toLowerCase()
-
-      return (
-        normalizedMeasurementType.includes('unidad') ||
-        normalizedMeasurementType.includes('paquete')
-      )
-    }
-
-    const getSubstanceTotalAvailable = (substance) =>
-      Number(substance?.weight_net ?? substance?.weight ?? 0)
-
-    const getDestructionAvailable = (substance) =>
-      isUnitMeasurementType(substance?.measurement_type)
-        ? Number(substance?.unit_quantity || 0)
-        : getSubstanceTotalAvailable(substance)
+    const getSubstanceTotalAvailable = (substance) => getSamplingAvailable(substance)
 
     const isRowSelectable = (data) => {
       console.log(data.state)
@@ -966,8 +959,12 @@ export default {
           destination: formData.destination,
           weight_sampled: formData.weight_sampled,
           weightContra: 0,
-          weightDestruction: isUnitMeasurementType(selectedSubstance.value?.measurement_type)
-            ? getDestructionAvailable(selectedSubstance.value)
+          weightDestruction: isUnitMeasurement(
+            getSampleMeasurementType(selectedSubstance.value, 'destruction'),
+          )
+            ? isUnitMeasurement(getSampleMeasurementType(selectedSubstance.value, 'sampling'))
+              ? getDestructionAvailable(selectedSubstance.value) - Number(formData.weight_sampled)
+              : getDestructionAvailable(selectedSubstance.value)
             : getDestructionAvailable(selectedSubstance.value) - Number(formData.weight_sampled),
           methodDestruction: formData.methodDestruction,
           observation: formData.observation,
@@ -1071,8 +1068,16 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const restante = isUnitMeasurementType(substance?.measurement_type)
-              ? getDestructionAvailable(substance)
+            const samplingIsUnits = isUnitMeasurement(
+              getSampleMeasurementType(substance, 'sampling'),
+            )
+            const destructionIsUnits = isUnitMeasurement(
+              getSampleMeasurementType(substance, 'destruction'),
+            )
+            const restante = destructionIsUnits
+              ? samplingIsUnits
+                ? getDestructionAvailable(substance) - Number(sampleWeight || 0) - contraWeight
+                : getDestructionAvailable(substance)
               : getDestructionAvailable(substance) - Number(sampleWeight || 0) - contraWeight
             return sum + (restante > 0 ? restante : 0)
           }, 0)
@@ -1107,16 +1112,23 @@ export default {
             const indiv = formData.individualWeights[substance.id] || { sample: null, contra: null }
             const sampleWeight = formData.useAutoWeight ? formData.autoWeightValue : indiv.sample
             const contraWeight = Number(indiv.contra) || 0
-            const isUnitBalance = isUnitMeasurementType(substance?.measurement_type)
+            const samplingMeasurementType = getSampleMeasurementType(substance, 'sampling')
+            const destructionMeasurementType = getSampleMeasurementType(substance, 'destruction')
+            const isUnitSampling = isUnitMeasurement(samplingMeasurementType)
+            const isUnitBalance = isUnitMeasurement(destructionMeasurementType)
             const totalAvailable = getSubstanceTotalAvailable(substance)
             const destructionAvailable = getDestructionAvailable(substance)
             const restante = isUnitBalance
-              ? destructionAvailable
+              ? isUnitSampling
+                ? destructionAvailable - Number(sampleWeight || 0) - contraWeight
+                : destructionAvailable
               : destructionAvailable - Number(sampleWeight || 0) - contraWeight
 
             if (!sampleWeight || sampleWeight <= 0) throw new Error('Cantidad de muestra inválida')
             if (Number(sampleWeight) + contraWeight > totalAvailable)
               throw new Error('La suma de muestra y contramuestra excede el total disponible')
+            if (isUnitSampling && (!Number.isInteger(Number(sampleWeight)) || !Number.isInteger(contraWeight)))
+              throw new Error('Las cantidades de muestreo deben ser unidades enteras')
             // Crear pre-análisis
             const payload = {
               substance: substance,
@@ -1159,8 +1171,8 @@ export default {
                   entry_date: new Date().toISOString().split('T')[0],
                   sample_quantity: 0,
                   counter_sample_quantity: contraWeight,
-                  measurement_type: 'GRAMOS',
-                  unit_quantity: null,
+                  measurement_type: samplingMeasurementType,
+                  unit_quantity: isUnitSampling ? contraWeight : null,
                   description: formData.observation || '',
                   substance: substance,
                   storageLocation: { id: 1 },
@@ -1177,9 +1189,7 @@ export default {
                 const detailPayload = {
                   state: 'PENDIENTE',
                   weight: restante,
-                  measurement_type: isUnitBalance
-                    ? substance?.measurement_type || 'UNIDADES'
-                    : 'GRAMOS',
+                  measurement_type: destructionMeasurementType,
                   unit_quantity: isUnitBalance ? restante : null,
                   destructionHeader: destructionHeader,
                   substance: substance,

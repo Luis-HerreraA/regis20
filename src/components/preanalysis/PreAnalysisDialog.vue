@@ -22,24 +22,25 @@
       </div>
 
       <div class="field">
-        <label for="weight">Peso a muestrear (g) *</label>
+        <label for="weight">Cantidad a muestrear ({{ samplingUnitLabel }}) *</label>
         <InputNumber
           id="weight"
           v-model="formData.weight_sampled"
           mode="decimal"
           :min="0"
           :max="totalAvailable"
-          :minFractionDigits="1"
-          :maxFractionDigits="2"
+          :minFractionDigits="isUnitSampling ? 0 : 1"
+          :maxFractionDigits="isUnitSampling ? 0 : 2"
+          :step="isUnitSampling ? 1 : 0.1"
           :useGrouping="false"
           class="w-full"
         />
         <small class="text-500">
-          Disponible para muestra: {{ formattedTotalAvailable }} g
+          Disponible para muestra: {{ formattedTotalAvailable }} {{ samplingUnitLabel }}
         </small>
         <small class="p-error block" v-if="formData.weight_sampled > totalAvailable">
           La cantidad no puede superar el total disponible ({{ formattedTotalAvailable }}
-          g).
+          {{ samplingUnitLabel }}).
         </small>
       </div>
 
@@ -89,6 +90,7 @@ import Dropdown from 'primevue/dropdown'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
+import { getSampleMeasurementType, getSamplingAvailable, isUnitMeasurement } from '@/utils/sampleMeasurement'
 
 export default {
   name: 'PreAnalysisDialog',
@@ -138,11 +140,18 @@ export default {
       observation: '',
     })
 
-    const totalAvailable = computed(() =>
-      Number(props.selectedSubstance?.weight_net ?? props.selectedSubstance?.weight ?? 0),
+    const samplingMeasurementType = computed(() =>
+      getSampleMeasurementType(props.selectedSubstance, 'sampling'),
     )
+    const isUnitSampling = computed(() => isUnitMeasurement(samplingMeasurementType.value))
+    const samplingUnitLabel = computed(() => (isUnitSampling.value ? 'unidades' : 'gramos'))
+    const totalAvailable = computed(() => getSamplingAvailable(props.selectedSubstance))
 
-    const formattedTotalAvailable = computed(() => totalAvailable.value.toFixed(2))
+    const formattedTotalAvailable = computed(() =>
+      isUnitSampling.value
+        ? String(Math.trunc(totalAvailable.value))
+        : totalAvailable.value.toFixed(2),
+    )
 
     const isFormValid = computed(() => {
       return (
@@ -203,6 +212,8 @@ export default {
 
     return {
       formData,
+      isUnitSampling,
+      samplingUnitLabel,
       isFormValid,
       closeDialog,
       submitForm,
